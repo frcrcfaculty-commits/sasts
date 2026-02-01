@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Activity | SASTS</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/styles.css">
+    <style>
+        .activity-container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: var(--space-xl);
+        }
+
+        .question-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            padding: var(--space-xl);
+            margin-bottom: var(--space-lg);
+        }
+
+        .question-number {
+            font-size: 0.875rem;
+            color: var(--text-muted);
+            margin-bottom: var(--space-sm);
+        }
+
+        .question-text {
+            font-size: 1.125rem;
+            font-weight: 500;
+            margin-bottom: var(--space-lg);
+        }
+
+        .option-btn {
+            display: block;
+            width: 100%;
+            text-align: left;
+            padding: var(--space-md) var(--space-lg);
+            margin-bottom: var(--space-sm);
+            border: 2px solid var(--border);
+            border-radius: var(--radius-md);
+            background: var(--bg-card);
+            cursor: pointer;
+            transition: all var(--transition-fast);
+        }
+
+        .option-btn:hover {
+            border-color: var(--primary);
+            background: rgba(102, 126, 234, 0.05);
+        }
+
+        .option-btn.selected {
+            border-color: var(--primary);
+            background: rgba(102, 126, 234, 0.1);
+        }
+
+        .option-btn.correct {
+            border-color: var(--success);
+            background: rgba(34, 197, 94, 0.1);
+        }
+
+        .option-btn.incorrect {
+            border-color: var(--danger);
+            background: rgba(239, 68, 68, 0.1);
+        }
+
+        .timer-bar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            height: 4px;
+            background: var(--gradient-primary);
+            transition: width 1s linear;
+        }
+
+        .progress-bar {
+            height: 8px;
+            background: var(--border);
+            border-radius: var(--radius-full);
+            margin-bottom: var(--space-xl);
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: var(--gradient-success);
+            transition: width var(--transition-fast);
+        }
+
+        .result-card {
+            text-align: center;
+            padding: var(--space-2xl);
+        }
+
+        .result-score {
+            font-size: 4rem;
+            font-weight: 700;
+            color: var(--primary);
+        }
+    </style>
+</head>
+
+<body>
+    <div id="timer-bar" class="timer-bar" style="width: 100%;"></div>
+
+    <div class="activity-container">
+        <div id="loading" class="text-center" style="padding: var(--space-2xl);">
+            <div class="spinner" style="margin: 0 auto;"></div>
+            <p class="text-muted" style="margin-top: var(--space-lg);">Loading activity...</p>
+        </div>
+
+        <div id="activity-content" style="display: none;">
+            <!-- Header -->
+            <div
+                style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-lg);">
+                <a href="student-dashboard.html" class="btn btn-secondary">← Back</a>
+                <div class="text-center">
+                    <h2 id="activity-title">Activity</h2>
+                    <p class="text-muted" id="activity-info"></p>
+                </div>
+                <div id="timer" style="font-size: 1.5rem; font-weight: 600;">00:00</div>
+            </div>
+
+            <!-- Progress -->
+            <div class="progress-bar">
+                <div class="progress-fill" id="progress-fill" style="width: 0%;"></div>
+            </div>
+
+            <!-- Questions Container -->
+            <div id="questions-container"></div>
+
+            <!-- Navigation -->
+            <div style="display: flex; justify-content: space-between; margin-top: var(--space-xl);">
+                <button class="btn btn-secondary" id="prev-btn" onclick="prevQuestion()" disabled>← Previous</button>
+                <button class="btn btn-primary" id="next-btn" onclick="nextQuestion()">Next →</button>
+                <button class="btn btn-success" id="submit-btn" onclick="submitActivity()" style="display: none;">Submit
+                    Answers</button>
+            </div>
+        </div>
+
+        <!-- Results -->
+        <div id="results" style="display: none;">
+            <div class="result-card card">
+                <div style="font-size: 3rem; margin-bottom: var(--space-lg);">🎉</div>
+                <h2>Activity Completed!</h2>
+                <div class="result-score" id="result-score">0/0</div>
+                <p class="text-muted" id="result-percentage">0%</p>
+                <p id="result-time" class="text-muted"></p>
+
+                <div style="margin-top: var(--space-xl);">
+                    <a href="student-dashboard.html" class="btn btn-primary btn-lg">Back to Dashboard</a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Auth
+        function getStudentToken() {
+            return localStorage.getItem('sasts_student_token');
+        }
+
+        if (!getStudentToken()) {
+            window.location.href = 'student-login.html';
+        }
+
+        async function studentFetch(endpoint, options = {}) {
+            return fetch(`/api/student${endpoint}`, {
+                ...options,
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${getStudentToken()}`,
+                    ...options.headers
+                }
+            });
+        }
+
+        const params = new URLSearchParams(window.location.search);
+        const activityId = params.get('id');
+
+        let activity = null;
+        let questions = [];
+        let currentQuestion = 0;
+        let answers = {};
+        let sessionId = null;
+        let startTime = null;
+        let timerInterval = null;
+
+        // Load activity
+        async function loadActivity() {
+            try {
+                const response = await studentFetch(`/activities/${activityId}`);
+                const data = await response.json();
+
+                activity = data.activity;
+
+                if (activity.content && activity.content.questions) {
+                    questions = activity.content.questions;
+                } else if (activity.content && activity.content.cards) {
+                    // Convert flashcards to quiz format
+                    questions = activity.content.cards.map((c, i) => ({
+                        id: i + 1,
+                        question: c.front,
+                        options: [c.back, 'Option B', 'Option C', 'Option D'],
+                        correct_answer: 0
+                    }));
+                } else {
+                    questions = [];
+                }
+
+                // Start session
+                const sessionRes = await studentFetch(`/activities/${activityId}/start`, { method: 'POST' });
+                const sessionData = await sessionRes.json();
+                sessionId = sessionData.session.id;
+
+                startTime = Date.now();
+                startTimer();
+
+                document.getElementById('activity-title').textContent = activity.title;
+                document.getElementById('activity-info').textContent = `${questions.length} questions | ${activity.difficulty}`;
+
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('activity-content').style.display = 'block';
+
+                renderQuestion();
+            } catch (error) {
+                console.error('Load error:', error);
+                document.getElementById('loading').innerHTML = '<p class="text-muted">Failed to load activity</p>';
+            }
+        }
+
+        function startTimer() {
+            timerInterval = setInterval(() => {
+                const elapsed = Math.floor((Date.now() - startTime) / 1000);
+                const mins = Math.floor(elapsed / 60);
+                const secs = elapsed % 60;
+                document.getElementById('timer').textContent =
+                    `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+            }, 1000);
+        }
+
+        function renderQuestion() {
+            if (questions.length === 0) {
+                document.getElementById('questions-container').innerHTML = '<p class="text-muted text-center">No questions in this activity</p>';
+                return;
+            }
+
+            const q = questions[currentQuestion];
+            const selectedAnswer = answers[q.id];
+
+            document.getElementById('questions-container').innerHTML = `
+        <div class="question-card">
+          <div class="question-number">Question ${currentQuestion + 1} of ${questions.length}</div>
+          <div class="question-text">${q.question}</div>
+          <div class="options">
+            ${q.options.map((opt, i) => `
+              <button class="option-btn ${selectedAnswer === i ? 'selected' : ''}" onclick="selectAnswer(${q.id}, ${i}, this)">
+                ${String.fromCharCode(65 + i)}. ${opt}
+              </button>
+            `).join('')}
+          </div>
+        </div>
+      `;
+
+            // Update progress
+            document.getElementById('progress-fill').style.width = `${((currentQuestion + 1) / questions.length) * 100}%`;
+
+            // Update buttons
+            document.getElementById('prev-btn').disabled = currentQuestion === 0;
+
+            if (currentQuestion === questions.length - 1) {
+                document.getElementById('next-btn').style.display = 'none';
+                document.getElementById('submit-btn').style.display = 'block';
+            } else {
+                document.getElementById('next-btn').style.display = 'block';
+                document.getElementById('submit-btn').style.display = 'none';
+            }
+        }
+
+        function selectAnswer(questionId, answerIndex, element) {
+            answers[questionId] = answerIndex;
+
+            document.querySelectorAll('.option-btn').forEach(btn => btn.classList.remove('selected'));
+            element.classList.add('selected');
+        }
+
+        function nextQuestion() {
+            if (currentQuestion < questions.length - 1) {
+                currentQuestion++;
+                renderQuestion();
+            }
+        }
+
+        function prevQuestion() {
+            if (currentQuestion > 0) {
+                currentQuestion--;
+                renderQuestion();
+            }
+        }
+
+        async function submitActivity() {
+            clearInterval(timerInterval);
+
+            const timeSpent = Math.floor((Date.now() - startTime) / 1000);
+            let score = 0;
+
+            questions.forEach(q => {
+                if (answers[q.id] === q.correct_answer) {
+                    score++;
+                }
+            });
+
+            const maxScore = questions.length;
+
+            try {
+                await studentFetch(`/activities/${activityId}/submit`, {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        sessionId,
+                        answers,
+                        timeSpent,
+                        score,
+                        maxScore
+                    })
+                });
+            } catch (error) {
+                console.error('Submit error:', error);
+            }
+
+            // Show results
+            document.getElementById('activity-content').style.display = 'none';
+            document.getElementById('results').style.display = 'block';
+
+            document.getElementById('result-score').textContent = `${score}/${maxScore}`;
+            document.getElementById('result-percentage').textContent = `${Math.round((score / maxScore) * 100)}%`;
+            document.getElementById('result-time').textContent = `Time: ${Math.floor(timeSpent / 60)}m ${timeSpent % 60}s`;
+        }
+
+        if (activityId) {
+            loadActivity();
+        } else {
+            document.getElementById('loading').innerHTML = '<p class="text-muted">No activity selected</p>';
+        }
+    </script>
+</body>
+
+</html>

@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Marks Management | SASTS</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+
+<body>
+    <div class="page-wrapper">
+        <div id="sidebar-container"></div>
+
+        <main class="main-content">
+            <div class="page-header">
+                <div>
+                    <h1 class="page-title">📊 Marks Management</h1>
+                    <p class="page-subtitle">Upload ISC marks to auto-detect strong and weak students</p>
+                </div>
+                <button class="btn btn-primary" onclick="showUploadModal()">+ Upload Marks</button>
+            </div>
+
+            <div id="alert-container"></div>
+
+            <!-- Stats -->
+            <div class="stats-grid" style="grid-template-columns: repeat(4, 1fr);">
+                <div class="stat-card">
+                    <div class="stat-value" id="stat-uploads">-</div>
+                    <div class="stat-label">Total Uploads</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="stat-students">-</div>
+                    <div class="stat-label">Students Tracked</div>
+                </div>
+                <div class="stat-card stat-card-weak">
+                    <div class="stat-value" id="stat-weak">-</div>
+                    <div class="stat-label">Weak Suggestions</div>
+                </div>
+                <div class="stat-card stat-card-strong">
+                    <div class="stat-value" id="stat-strong">-</div>
+                    <div class="stat-label">Strong Suggestions</div>
+                </div>
+            </div>
+
+            <!-- AI Suggestions -->
+            <div class="card mb-lg">
+                <div class="card-header">
+                    <h3>🤖 AI Suggestions</h3>
+                    <div class="flex gap-sm">
+                        <button class="btn btn-sm btn-success" onclick="applyAllSuggestions()">Apply All</button>
+                        <button class="btn btn-sm btn-secondary" onclick="loadSuggestions()">Refresh</button>
+                    </div>
+                </div>
+                <div class="card-body" id="suggestions-container">
+                    <p class="text-muted text-center">Loading suggestions...</p>
+                </div>
+            </div>
+
+            <!-- Upload History -->
+            <div class="card">
+                <div class="card-header">
+                    <h3>📁 Upload History</h3>
+                </div>
+                <div class="card-body">
+                    <div class="table-container">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>File</th>
+                                    <th>Semester</th>
+                                    <th>Year</th>
+                                    <th>Students</th>
+                                    <th>Uploaded</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="uploads-body">
+                                <tr>
+                                    <td colspan="6" class="text-center text-muted">Loading...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Upload Modal -->
+    <div class="modal-overlay" id="upload-modal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3>Upload ISC Marks</h3>
+                <button class="btn-icon" onclick="closeModal()">✕</button>
+            </div>
+            <form id="upload-form">
+                <div class="modal-body">
+                    <div class="alert alert-info">
+                        <strong>CSV Format:</strong> File should have columns: Roll Number, Name, Marks (and optionally
+                        Email, Max Marks)
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">Semester *</label>
+                        <select id="semester" class="form-select" required>
+                            <option value="">Select Semester</option>
+                            <option value="1">Semester 1</option>
+                            <option value="2">Semester 2</option>
+                            <option value="3">Semester 3</option>
+                            <option value="4">Semester 4</option>
+                            <option value="5">Semester 5</option>
+                            <option value="6">Semester 6</option>
+                            <option value="7">Semester 7</option>
+                            <option value="8">Semester 8</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">Academic Year *</label>
+                        <input type="text" id="academic-year" class="form-input" placeholder="e.g., 2025-26" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">Year of Study *</label>
+                        <select id="year" class="form-select" required>
+                            <option value="1">1st Year</option>
+                            <option value="2">2nd Year</option>
+                            <option value="3">3rd Year</option>
+                            <option value="4">4th Year</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">Marks File (CSV) *</label>
+                        <input type="file" id="marks-file" class="form-input" accept=".csv" required>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+                    <button type="submit" class="btn btn-primary" id="upload-btn">Upload & Analyze</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script src="js/auth.js"></script>
+    <script>
+        if (!requireAuth()) window.location.href = 'index.html';
+        document.getElementById('sidebar-container').innerHTML = buildSidebar();
+
+        // Load suggestions
+        async function loadSuggestions() {
+            try {
+                const response = await authFetch('/faculty/ai-suggestions');
+                const data = await response.json();
+
+                const container = document.getElementById('suggestions-container');
+                if (data.suggestions && data.suggestions.length > 0) {
+                    // Update stats
+                    const weak = data.suggestions.filter(s => s.suggested_category === 'weak').length;
+                    const strong = data.suggestions.filter(s => s.suggested_category === 'strong').length;
+                    document.getElementById('stat-weak').textContent = weak;
+                    document.getElementById('stat-strong').textContent = strong;
+
+                    container.innerHTML = `
+            <div class="table-container">
+              <table class="table">
+                <thead>
+                  <tr>
+                    <th>Student</th>
+                    <th>Roll Number</th>
+                    <th>Suggested</th>
+                    <th>Confidence</th>
+                    <th>Reason</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${data.suggestions.map(s => `
+                    <tr>
+                      <td><strong>${s.student_name}</strong></td>
+                      <td>${s.roll_number}</td>
+                      <td>
+                        <span class="badge ${s.suggested_category === 'weak' ? 'badge-weak' : 'badge-strong'}">
+                          ${s.suggested_category}
+                        </span>
+                      </td>
+                      <td>${Math.round(s.confidence_score)}%</td>
+                      <td class="text-sm text-muted" style="max-width: 200px;">${s.reason}</td>
+                      <td>
+                        <div class="flex gap-sm">
+                          <button class="btn btn-sm btn-success" onclick="applySuggestion(${s.id})">✓ Apply</button>
+                          <button class="btn btn-sm btn-secondary" onclick="dismissSuggestion(${s.id})">✕</button>
+                        </div>
+                      </td>
+                    </tr>
+                  `).join('')}
+                </tbody>
+              </table>
+            </div>
+          `;
+                } else {
+                    container.innerHTML = `
+            <div class="empty-state">
+              <div class="empty-state-icon">🤖</div>
+              <h3>No Pending Suggestions</h3>
+              <p class="text-muted">Upload marks to get AI-powered suggestions for strong and weak students</p>
+            </div>
+          `;
+                    document.getElementById('stat-weak').textContent = '0';
+                    document.getElementById('stat-strong').textContent = '0';
+                }
+            } catch (error) {
+                console.error('Load suggestions error:', error);
+            }
+        }
+
+        async function applySuggestion(id) {
+            try {
+                const response = await authFetch(`/faculty/ai-suggestions/${id}/apply`, { method: 'POST' });
+                if (response.ok) {
+                    showAlert('Student added to classification!', 'success');
+                    loadSuggestions();
+                }
+            } catch (error) {
+                showAlert('Failed to apply suggestion', 'error');
+            }
+        }
+
+        async function dismissSuggestion(id) {
+            try {
+                await authFetch(`/faculty/ai-suggestions/${id}`, { method: 'DELETE' });
+                loadSuggestions();
+            } catch (error) {
+                showAlert('Failed to dismiss', 'error');
+            }
+        }
+
+        async function applyAllSuggestions() {
+            if (!confirm('Apply all pending suggestions?')) return;
+            // This would need a bulk apply endpoint
+            showAlert('Bulk apply not yet implemented', 'info');
+        }
+
+        function showUploadModal() {
+            document.getElementById('upload-form').reset();
+            document.getElementById('upload-modal').classList.add('active');
+        }
+
+        function closeModal() {
+            document.getElementById('upload-modal').classList.remove('active');
+        }
+
+        document.getElementById('upload-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const btn = document.getElementById('upload-btn');
+            btn.disabled = true;
+            btn.textContent = 'Uploading...';
+
+            try {
+                const formData = new FormData();
+                formData.append('semester', document.getElementById('semester').value);
+                formData.append('academicYear', document.getElementById('academic-year').value);
+                formData.append('year', document.getElementById('year').value);
+                formData.append('file', document.getElementById('marks-file').files[0]);
+
+                const token = getToken();
+                const response = await fetch('/api/faculty/marks/upload', {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${token}` },
+                    body: formData
+                });
+
+                const data = await response.json();
+                if (!response.ok) throw new Error(data.message);
+
+                showAlert(`Uploaded! ${data.studentCount} students processed, ${data.suggestionsGenerated} AI suggestions generated.`, 'success');
+                closeModal();
+                loadSuggestions();
+            } catch (error) {
+                showAlert(error.message || 'Upload failed', 'error');
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Upload & Analyze';
+            }
+        });
+
+        loadSuggestions();
+    </script>
+</body>
+
+</html>

@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Analytics Dashboard | SASTS</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/styles.css">
+    <style>
+        .chart-container {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            padding: var(--space-lg);
+            margin-bottom: var(--space-lg);
+        }
+
+        .chart-title {
+            font-size: 1.125rem;
+            font-weight: 600;
+            margin-bottom: var(--space-md);
+        }
+
+        .bar-chart {
+            display: flex;
+            align-items: flex-end;
+            height: 200px;
+            gap: var(--space-md);
+            padding: var(--space-md) 0;
+        }
+
+        .bar-item {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: var(--space-sm);
+        }
+
+        .bar {
+            width: 100%;
+            max-width: 60px;
+            border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+            transition: height var(--transition-fast);
+            position: relative;
+        }
+
+        .bar::after {
+            content: attr(data-value);
+            position: absolute;
+            top: -25px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 0.875rem;
+            font-weight: 600;
+        }
+
+        .bar-label {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            text-align: center;
+        }
+
+        .donut-chart {
+            width: 150px;
+            height: 150px;
+            border-radius: 50%;
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .donut-center {
+            position: absolute;
+            width: 80px;
+            height: 80px;
+            background: var(--bg-card);
+            border-radius: 50%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: var(--space-sm);
+            margin-bottom: var(--space-sm);
+        }
+
+        .legend-color {
+            width: 12px;
+            height: 12px;
+            border-radius: 3px;
+        }
+
+        .analytics-grid {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: var(--space-lg);
+        }
+
+        @media (max-width: 768px) {
+            .analytics-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .activity-table {
+            width: 100%;
+        }
+
+        .activity-table th,
+        .activity-table td {
+            padding: var(--space-sm) var(--space-md);
+            text-align: left;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .progress-bar-mini {
+            width: 100%;
+            height: 8px;
+            background: var(--border);
+            border-radius: var(--radius-full);
+            overflow: hidden;
+        }
+
+        .progress-fill-mini {
+            height: 100%;
+            border-radius: var(--radius-full);
+        }
+    </style>
+</head>
+
+<body>
+    <div class="page-wrapper">
+        <div id="sidebar-container"></div>
+
+        <main class="main-content">
+            <div class="page-header">
+                <div>
+                    <h1 class="page-title">📊 Analytics Dashboard</h1>
+                    <p class="page-subtitle">Track student engagement and activity performance</p>
+                </div>
+                <select id="time-filter" class="form-select" style="width: auto;" onchange="loadAnalytics()">
+                    <option value="7">Last 7 days</option>
+                    <option value="30" selected>Last 30 days</option>
+                    <option value="90">Last 90 days</option>
+                    <option value="365">This year</option>
+                </select>
+            </div>
+
+            <div id="alert-container"></div>
+
+            <!-- Stats Overview -->
+            <div class="stats-grid" style="grid-template-columns: repeat(5, 1fr);">
+                <div class="stat-card">
+                    <div class="stat-value" id="stat-total-activities">-</div>
+                    <div class="stat-label">Total Activities</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="stat-total-sessions">-</div>
+                    <div class="stat-label">Student Sessions</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="stat-completion-rate">-</div>
+                    <div class="stat-label">Completion Rate</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="stat-avg-score">-</div>
+                    <div class="stat-label">Avg Score</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="stat-total-time">-</div>
+                    <div class="stat-label">Total Time</div>
+                </div>
+            </div>
+
+            <!-- Charts Row -->
+            <div class="analytics-grid">
+                <!-- Activity Types Chart -->
+                <div class="chart-container">
+                    <div class="chart-title">📝 Activities by Type</div>
+                    <div class="bar-chart" id="activity-type-chart">
+                        <div class="bar-item">
+                            <div class="bar" style="height: 80%; background: var(--primary);" data-value="0"></div>
+                            <div class="bar-label">MCQ</div>
+                        </div>
+                        <div class="bar-item">
+                            <div class="bar" style="height: 60%; background: var(--success);" data-value="0"></div>
+                            <div class="bar-label">Crossword</div>
+                        </div>
+                        <div class="bar-item">
+                            <div class="bar" style="height: 40%; background: var(--warning);" data-value="0"></div>
+                            <div class="bar-label">Fill Blanks</div>
+                        </div>
+                        <div class="bar-item">
+                            <div class="bar" style="height: 50%; background: var(--info);" data-value="0"></div>
+                            <div class="bar-label">Flashcards</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Student Classification Distribution -->
+                <div class="chart-container">
+                    <div class="chart-title">🎯 Student Classification</div>
+                    <div style="display: flex; gap: var(--space-xl); align-items: center; padding: var(--space-md);">
+                        <div class="donut-chart" id="classification-chart"
+                            style="background: conic-gradient(var(--success) 0% 45%, var(--danger) 45% 100%);">
+                            <div class="donut-center">
+                                <span style="font-size: 1.5rem; font-weight: 700;" id="total-classified">0</span>
+                                <span style="font-size: 0.75rem; color: var(--text-muted);">Students</span>
+                            </div>
+                        </div>
+                        <div>
+                            <div class="legend-item">
+                                <div class="legend-color" style="background: var(--success);"></div>
+                                <span>Strong (<span id="strong-count">0</span>)</span>
+                            </div>
+                            <div class="legend-item">
+                                <div class="legend-color" style="background: var(--danger);"></div>
+                                <span>Weak (<span id="weak-count">0</span>)</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Top Activities Table -->
+            <div class="chart-container">
+                <div class="chart-title">🏆 Top Performing Activities</div>
+                <table class="activity-table">
+                    <thead>
+                        <tr>
+                            <th>Activity</th>
+                            <th>Type</th>
+                            <th>Attempts</th>
+                            <th>Avg Score</th>
+                            <th>Completion</th>
+                        </tr>
+                    </thead>
+                    <tbody id="top-activities-body">
+                        <tr>
+                            <td colspan="5" class="text-center text-muted">Loading...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Faculty Leaderboard -->
+            <div class="chart-container">
+                <div class="chart-title">👩‍🏫 Faculty Activity Summary</div>
+                <table class="activity-table">
+                    <thead>
+                        <tr>
+                            <th>Faculty</th>
+                            <th>Activities Created</th>
+                            <th>Student Sessions</th>
+                            <th>Avg Completion</th>
+                        </tr>
+                    </thead>
+                    <tbody id="faculty-stats-body">
+                        <tr>
+                            <td colspan="4" class="text-center text-muted">Loading...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </main>
+    </div>
+
+    <script src="js/auth.js"></script>
+    <script>
+        if (!requireAuth()) window.location.href = 'index.html';
+        document.getElementById('sidebar-container').innerHTML = buildSidebar();
+
+        async function loadAnalytics() {
+            try {
+                // Load analytics from new API
+                const response = await authFetch('/analytics/summary');
+                const data = await response.json();
+
+                // Update stats
+                document.getElementById('stat-total-activities').textContent = data.totalGenerated || data.totalActivities || 0;
+                document.getElementById('stat-total-sessions').textContent = data.totalSessions || 0;
+                document.getElementById('stat-completion-rate').textContent = data.completionRate || '-';
+                document.getElementById('stat-avg-score').textContent = data.avgScore || '-';
+                document.getElementById('stat-total-time').textContent = data.totalTime || '0m';
+
+                // Update classification chart
+                const strong = data.byCategory?.strong || 0;
+                const weak = data.byCategory?.weak || 0;
+                const total = strong + weak;
+
+                document.getElementById('strong-count').textContent = strong;
+                document.getElementById('weak-count').textContent = weak;
+                document.getElementById('total-classified').textContent = total;
+
+                if (total > 0) {
+                    const strongPercent = (strong / total) * 100;
+                    document.getElementById('classification-chart').style.background =
+                        `conic-gradient(var(--success) 0% ${strongPercent}%, var(--danger) ${strongPercent}% 100%)`;
+                }
+
+                // Update activity type chart
+                const byType = data.byType || {};
+                const maxCount = Math.max(...Object.values(byType), 1);
+                const typeColors = { mcq: 'var(--primary)', crossword: 'var(--success)', fill_blanks: 'var(--warning)', flashcards: 'var(--info)' };
+                const typeLabels = { mcq: 'MCQ', crossword: 'Crossword', fill_blanks: 'Fill Blanks', flashcards: 'Flashcards' };
+
+                const chartHtml = Object.entries(typeLabels).map(([key, label]) => {
+                    const count = byType[key] || 0;
+                    const height = Math.max(10, (count / maxCount) * 100);
+                    return `
+                        <div class="bar-item">
+                            <div class="bar" style="height: ${height}%; background: ${typeColors[key]};" data-value="${count}"></div>
+                            <div class="bar-label">${label}</div>
+                        </div>
+                    `;
+                }).join('');
+                document.getElementById('activity-type-chart').innerHTML = chartHtml;
+
+                // Top activities table
+                if (data.topActivities && data.topActivities.length > 0) {
+                    const activityRows = data.topActivities.map(act => `
+                        <tr>
+                            <td>${act.title}</td>
+                            <td><span class="badge">${act.activity_type}</span></td>
+                            <td>${act.attempts}</td>
+                            <td>${act.avg_score || '-'}%</td>
+                            <td>
+                                <div class="progress-bar-mini">
+                                    <div class="progress-fill-mini" style="width: ${act.completion_rate || 0}%; background: var(--success);"></div>
+                                </div>
+                                <small>${act.completion_rate || 0}%</small>
+                            </td>
+                        </tr>
+                    `).join('');
+                    document.getElementById('top-activities-body').innerHTML = activityRows;
+                } else {
+                    document.getElementById('top-activities-body').innerHTML = `
+                        <tr>
+                            <td colspan="5" class="text-center text-muted">
+                                <div class="empty-state" style="padding: var(--space-lg);">
+                                    <div class="empty-state-icon">📊</div>
+                                    <p>No activity data yet. Create and publish activities to see analytics.</p>
+                                </div>
+                            </td>
+                        </tr>
+                    `;
+                }
+
+                // Faculty stats table
+                if (data.facultyStats && data.facultyStats.length > 0) {
+                    const facultyRows = data.facultyStats.map(fac => `
+                        <tr>
+                            <td>${fac.faculty_name}</td>
+                            <td>${fac.activities_created}</td>
+                            <td>${fac.total_sessions}</td>
+                            <td>
+                                <div class="progress-bar-mini">
+                                    <div class="progress-fill-mini" style="width: ${fac.avg_completion || 0}%; background: var(--primary);"></div>
+                                </div>
+                                <small>${fac.avg_completion || 0}%</small>
+                            </td>
+                        </tr>
+                    `).join('');
+                    document.getElementById('faculty-stats-body').innerHTML = facultyRows;
+                } else {
+                    document.getElementById('faculty-stats-body').innerHTML = `
+                        <tr>
+                            <td colspan="4" class="text-center text-muted">
+                                <div class="empty-state" style="padding: var(--space-lg);">
+                                    <div class="empty-state-icon">👩‍🏫</div>
+                                    <p>No faculty activity data yet.</p>
+                                </div>
+                            </td>
+                        </tr>
+                    `;
+                }
+
+            } catch (error) {
+                console.error('Load analytics error:', error);
+                showAlert('Failed to load analytics data', 'error');
+            }
+        }
+
+        loadAnalytics();
+    </script>
+</body>
+
+</html>

@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Syllabus Management | SASTS</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+
+<body>
+    <div class="page-wrapper">
+        <div id="sidebar-container"></div>
+
+        <main class="main-content">
+            <div class="page-header">
+                <div>
+                    <h1 class="page-title">📚 Syllabus Management</h1>
+                    <p class="page-subtitle">Upload course syllabi for AI-powered activity generation</p>
+                </div>
+                <button class="btn btn-primary" onclick="showUploadModal()">+ Upload Syllabus</button>
+            </div>
+
+            <div id="alert-container"></div>
+
+            <!-- AI Status -->
+            <div class="alert alert-info" id="ai-status" style="display: none;">
+                <span id="ai-status-text"></span>
+            </div>
+
+            <!-- Syllabi List -->
+            <div class="card">
+                <div class="card-body">
+                    <div class="table-container">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>Course</th>
+                                    <th>Code</th>
+                                    <th>Modules</th>
+                                    <th>Activities</th>
+                                    <th>Uploaded</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="syllabi-body">
+                                <tr>
+                                    <td colspan="6" class="text-center text-muted">Loading...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Upload Modal -->
+    <div class="modal-overlay" id="upload-modal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3>Upload Syllabus</h3>
+                <button class="btn-icon" onclick="closeModal('upload-modal')">✕</button>
+            </div>
+            <form id="upload-form">
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label class="form-label">Course Name *</label>
+                        <input type="text" id="course-name" class="form-input" placeholder="e.g., Data Structures"
+                            required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Course Code</label>
+                        <input type="text" id="course-code" class="form-input" placeholder="e.g., CS201">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Syllabus File *</label>
+                        <input type="file" id="syllabus-file" class="form-input" accept=".pdf,.txt,.csv" required>
+                        <p class="form-hint">Upload PDF, TXT, or CSV file. AI will extract modules automatically.</p>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('upload-modal')">Cancel</button>
+                    <button type="submit" class="btn btn-primary" id="upload-btn">Upload & Parse</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modules Modal -->
+    <div class="modal-overlay" id="modules-modal">
+        <div class="modal" style="max-width: 700px;">
+            <div class="modal-header">
+                <h3 id="modules-title">Course Modules</h3>
+                <button class="btn-icon" onclick="closeModal('modules-modal')">✕</button>
+            </div>
+            <div class="modal-body" id="modules-content">
+                Loading...
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('modules-modal')">Close</button>
+                <button class="btn btn-primary" onclick="goToActivityGenerator()">🎮 Generate Activities</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/auth.js"></script>
+    <script>
+        if (!requireAuth()) window.location.href = 'index.html';
+        document.getElementById('sidebar-container').innerHTML = buildSidebar();
+
+        let currentSyllabusId = null;
+
+        // Check AI status
+        async function checkAIStatus() {
+            try {
+                const response = await authFetch('/ai/status');
+                const data = await response.json();
+
+                const statusEl = document.getElementById('ai-status');
+                const textEl = document.getElementById('ai-status-text');
+                statusEl.style.display = 'block';
+
+                if (data.available) {
+                    statusEl.className = 'alert alert-success';
+                    textEl.textContent = `🤖 AI is available (${data.model}). Syllabi will be parsed automatically.`;
+                } else {
+                    statusEl.className = 'alert alert-warning';
+                    textEl.textContent = '⚠️ AI not available. You can still add modules manually.';
+                }
+            } catch {
+                // Ignore
+            }
+        }
+
+        // Load syllabi
+        async function loadSyllabi() {
+            try {
+                const response = await authFetch('/faculty/syllabus');
+                const data = await response.json();
+
+                const tbody = document.getElementById('syllabi-body');
+                if (data.syllabi && data.syllabi.length > 0) {
+                    tbody.innerHTML = data.syllabi.map(s => {
+                        let modules = [];
+                        try { modules = JSON.parse(s.parsed_modules) || []; } catch { }
+                        return `
+              <tr>
+                <td><strong>${s.course_name}</strong></td>
+                <td>${s.course_code || '-'}</td>
+                <td>${modules.length} modules</td>
+                <td>
+                  <span class="badge badge-primary" id="activity-count-${s.id}">Loading...</span>
+                </td>
+                <td>${formatDate(s.created_at)}</td>
+                <td>
+                  <div class="flex gap-sm">
+                    <button class="btn btn-sm btn-outline" onclick="viewModules(${s.id})">View Modules</button>
+                    <a href="faculty-activities.html?syllabusId=${s.id}" class="btn btn-sm btn-primary">Generate Activity</a>
+                    <button class="btn btn-sm btn-danger" onclick="deleteSyllabus(${s.id})">Delete</button>
+                  </div>
+                </td>
+              </tr>
+            `;
+                    }).join('');
+                } else {
+                    tbody.innerHTML = `
+            <tr>
+              <td colspan="6">
+                <div class="empty-state">
+                  <div class="empty-state-icon">📚</div>
+                  <h3>No Syllabi Uploaded</h3>
+                  <p>Upload a syllabus to start generating activities with AI</p>
+                </div>
+              </td>
+            </tr>
+          `;
+                }
+            } catch (error) {
+                console.error('Load error:', error);
+                showAlert('Failed to load syllabi', 'error');
+            }
+        }
+
+        function showUploadModal() {
+            document.getElementById('upload-form').reset();
+            document.getElementById('upload-modal').classList.add('active');
+        }
+
+        function closeModal(id) {
+            document.getElementById(id).classList.remove('active');
+        }
+
+        document.getElementById('upload-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const btn = document.getElementById('upload-btn');
+            btn.disabled = true;
+            btn.textContent = 'Uploading...';
+
+            try {
+                const formData = new FormData();
+                formData.append('courseName', document.getElementById('course-name').value);
+                formData.append('courseCode', document.getElementById('course-code').value);
+                formData.append('file', document.getElementById('syllabus-file').files[0]);
+
+                const token = getToken();
+                const response = await fetch('/api/faculty/syllabus/upload', {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${token}` },
+                    body: formData
+                });
+
+                const data = await response.json();
+                if (!response.ok) throw new Error(data.message);
+
+                showAlert(data.aiParsed ?
+                    `Syllabus uploaded! AI extracted ${data.modules.length} modules.` :
+                    'Syllabus uploaded! Add modules manually.',
+                    'success'
+                );
+                closeModal('upload-modal');
+                loadSyllabi();
+            } catch (error) {
+                showAlert(error.message || 'Upload failed', 'error');
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Upload & Parse';
+            }
+        });
+
+        async function viewModules(syllabusId) {
+            currentSyllabusId = syllabusId;
+            document.getElementById('modules-modal').classList.add('active');
+            document.getElementById('modules-content').innerHTML = 'Loading...';
+
+            try {
+                const response = await authFetch(`/faculty/syllabus/${syllabusId}`);
+                const data = await response.json();
+
+                document.getElementById('modules-title').textContent = data.syllabus.course_name;
+
+                if (data.modules && data.modules.length > 0) {
+                    document.getElementById('modules-content').innerHTML = data.modules.map(m => `
+            <div style="border: 1px solid var(--border); border-radius: var(--radius-md); padding: var(--space-md); margin-bottom: var(--space-md);">
+              <div style="display: flex; justify-content: space-between; align-items: center;">
+                <h4>Module ${m.module_number}: ${m.module_name}</h4>
+                <span class="badge badge-primary">${m.hours || 0} hrs</span>
+              </div>
+              <p class="text-sm text-muted" style="margin-top: var(--space-sm);">
+                ${m.topics ? JSON.parse(m.topics).join(', ') : 'No topics listed'}
+              </p>
+            </div>
+          `).join('');
+                } else {
+                    document.getElementById('modules-content').innerHTML = `
+            <p class="text-muted text-center">No modules found. AI parsing may have failed.</p>
+            <button class="btn btn-outline" style="width: 100%; margin-top: var(--space-md);">+ Add Module Manually</button>
+          `;
+                }
+            } catch (error) {
+                document.getElementById('modules-content').innerHTML = '<p class="text-muted">Failed to load modules</p>';
+            }
+        }
+
+        function goToActivityGenerator() {
+            if (currentSyllabusId) {
+                window.location.href = `faculty-activities.html?syllabusId=${currentSyllabusId}`;
+            }
+        }
+
+        async function deleteSyllabus(id) {
+            if (!confirm('Delete this syllabus and all related activities?')) return;
+
+            try {
+                const response = await authFetch(`/faculty/syllabus/${id}`, { method: 'DELETE' });
+                if (response.ok) {
+                    showAlert('Syllabus deleted', 'success');
+                    loadSyllabi();
+                }
+            } catch (error) {
+                showAlert('Failed to delete', 'error');
+            }
+        }
+
+        checkAIStatus();
+        loadSyllabi();
+    </script>
+</body>
+
+</html>

@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>New Activity | SASTS</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+
+<body>
+    <div class="page-wrapper">
+        <div id="sidebar-container"></div>
+
+        <main class="main-content">
+            <div class="page-header">
+                <div>
+                    <h1 class="page-title">Create New Activity</h1>
+                    <p class="page-subtitle">Add an activity for a classified student</p>
+                </div>
+                <a href="activities.html" class="btn btn-secondary">← Back to Activities</a>
+            </div>
+
+            <div id="alert-container"></div>
+
+            <div class="card" style="max-width: 700px;">
+                <div class="card-body">
+                    <form id="activity-form">
+                        <div class="form-group">
+                            <label class="form-label">Select Student (Classification)</label>
+                            <select id="classification-id" class="form-select" required>
+                                <option value="">Select a classified student</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group" id="activity-type-group">
+                            <label class="form-label">Activity Type</label>
+                            <select id="activity-type" class="form-select" required>
+                                <option value="">Select student first</option>
+                            </select>
+                            <p class="form-hint" id="type-hint"></p>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label">Activity Title</label>
+                            <input type="text" id="title" class="form-input"
+                                placeholder="e.g., Extra Lecture on Data Structures" required>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label">Description</label>
+                            <textarea id="description" class="form-textarea"
+                                placeholder="Detailed description of the activity (minimum 50 characters)" required
+                                minlength="50" style="min-height: 150px;"></textarea>
+                            <p class="form-hint">Minimum 50 characters required</p>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label">Scheduled Date (Optional)</label>
+                            <input type="date" id="scheduled-date" class="form-input">
+                        </div>
+
+                        <div class="flex gap-md" style="margin-top: var(--space-xl);">
+                            <button type="submit" class="btn btn-primary btn-lg" id="submit-btn">Create
+                                Activity</button>
+                            <a href="activities.html" class="btn btn-secondary btn-lg">Cancel</a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="js/auth.js"></script>
+    <script>
+        if (!requireAuth()) window.location.href = 'index.html';
+        document.getElementById('sidebar-container').innerHTML = buildSidebar();
+
+        const WEAK_TYPES = [
+            { value: 'notes', label: 'Extra Notes' },
+            { value: 'lecture', label: 'Extra Lecture' },
+            { value: 'interactive', label: 'Interactive Activity' }
+        ];
+
+        const STRONG_TYPES = [
+            { value: 'nptel_course', label: 'NPTEL Course' },
+            { value: 'assignment', label: 'Advanced Assignment' },
+            { value: 'tutorial', label: 'Additional Tutorial' },
+            { value: 'extra_course', label: 'Extra Course' }
+        ];
+
+        let classifications = [];
+
+        async function loadClassifications() {
+            try {
+                const response = await authFetch('/students');
+                const data = await response.json();
+                classifications = data.classifications || [];
+
+                const select = document.getElementById('classification-id');
+                classifications.forEach(c => {
+                    const option = document.createElement('option');
+                    option.value = c.id;
+                    option.textContent = `${c.student_name} (${c.roll_number}) - ${c.category.toUpperCase()}`;
+                    option.dataset.category = c.category;
+                    select.appendChild(option);
+                });
+
+                // Pre-select if classificationId is in URL
+                const params = new URLSearchParams(window.location.search);
+                const preselect = params.get('classificationId');
+                if (preselect) {
+                    select.value = preselect;
+                    updateActivityTypes();
+                }
+            } catch (error) {
+                showAlert('Failed to load classifications', 'error');
+            }
+        }
+
+        function updateActivityTypes() {
+            const classId = document.getElementById('classification-id').value;
+            const classification = classifications.find(c => c.id === parseInt(classId));
+            const typeSelect = document.getElementById('activity-type');
+            const hint = document.getElementById('type-hint');
+
+            typeSelect.innerHTML = '<option value="">Select activity type</option>';
+
+            if (!classification) {
+                hint.textContent = '';
+                return;
+            }
+
+            const types = classification.category === 'weak' ? WEAK_TYPES : STRONG_TYPES;
+            types.forEach(t => {
+                const option = document.createElement('option');
+                option.value = t.value;
+                option.textContent = t.label;
+                typeSelect.appendChild(option);
+            });
+
+            hint.textContent = classification.category === 'weak'
+                ? 'For weak students: Notes, Lectures, Interactive activities'
+                : 'For strong students: NPTEL, Assignments, Tutorials, Extra courses';
+        }
+
+        document.getElementById('classification-id').addEventListener('change', updateActivityTypes);
+
+        document.getElementById('activity-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const btn = document.getElementById('submit-btn');
+            btn.disabled = true;
+
+            try {
+                const response = await authFetch('/activities', {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        classificationId: parseInt(document.getElementById('classification-id').value),
+                        activityType: document.getElementById('activity-type').value,
+                        title: document.getElementById('title').value,
+                        description: document.getElementById('description').value,
+                        scheduledDate: document.getElementById('scheduled-date').value || null
+                    })
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) throw new Error(data.message);
+
+                showAlert('Activity created successfully!', 'success');
+                setTimeout(() => window.location.href = 'activities.html', 1500);
+            } catch (error) {
+                showAlert(error.message || 'Failed to create activity', 'error');
+                btn.disabled = false;
+            }
+        });
+
+        loadClassifications();
+    </script>
+</body>
+
+</html>

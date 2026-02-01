@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Weak Students | SASTS</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+
+<body>
+    <div class="page-wrapper">
+        <div id="sidebar-container"></div>
+
+        <main class="main-content">
+            <div class="page-header">
+                <div>
+                    <h1 class="page-title">Weak Students</h1>
+                    <p class="page-subtitle">Students requiring additional academic support</p>
+                </div>
+                <button class="btn btn-primary" onclick="showAddModal()">+ Classify New Student</button>
+            </div>
+
+            <div id="alert-container"></div>
+
+            <!-- Students List -->
+            <div class="card">
+                <div class="card-body">
+                    <div class="table-container">
+                        <table class="table" id="students-table">
+                            <thead>
+                                <tr>
+                                    <th>Student Name</th>
+                                    <th>Roll Number</th>
+                                    <th>Email</th>
+                                    <th>Semester</th>
+                                    <th>Reason</th>
+                                    <th>Classified On</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="students-body">
+                                <tr>
+                                    <td colspan="7" class="text-center text-muted">Loading...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Add/Edit Modal -->
+    <div class="modal-overlay" id="modal-overlay">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 id="modal-title">Classify Weak Student</h3>
+                <button class="btn-icon" onclick="closeModal()">✕</button>
+            </div>
+            <form id="classify-form">
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label class="form-label">Student Name</label>
+                        <input type="text" id="student-name" class="form-input" placeholder="Enter student name"
+                            required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Roll Number</label>
+                        <input type="text" id="roll-number" class="form-input" placeholder="e.g., 2024001" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Email</label>
+                        <input type="email" id="student-email" class="form-input" placeholder="student@example.com"
+                            required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Semester</label>
+                        <select id="semester" class="form-select" required>
+                            <option value="">Select semester</option>
+                            <option value="1">Semester 1</option>
+                            <option value="2">Semester 2</option>
+                            <option value="3">Semester 3</option>
+                            <option value="4">Semester 4</option>
+                            <option value="5">Semester 5</option>
+                            <option value="6">Semester 6</option>
+                            <option value="7">Semester 7</option>
+                            <option value="8">Semester 8</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Academic Year</label>
+                        <input type="text" id="academic-year" class="form-input" placeholder="e.g., 2025-26" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Reason for Classification</label>
+                        <textarea id="reason" class="form-textarea"
+                            placeholder="Explain why this student needs additional support (minimum 20 characters)"
+                            required minlength="20"></textarea>
+                        <p class="form-hint">Minimum 20 characters required</p>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+                    <button type="submit" class="btn btn-primary" id="submit-btn">Classify Student</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script src="js/auth.js"></script>
+    <script>
+        if (!requireAuth()) window.location.href = 'index.html';
+        document.getElementById('sidebar-container').innerHTML = buildSidebar();
+
+        let editingId = null;
+
+        // Load students
+        async function loadStudents() {
+            try {
+                const response = await authFetch('/students?category=weak');
+                const data = await response.json();
+
+                const tbody = document.getElementById('students-body');
+                if (data.classifications && data.classifications.length > 0) {
+                    tbody.innerHTML = data.classifications.map(c => `
+            <tr>
+              <td><strong>${c.student_name}</strong></td>
+              <td>${c.roll_number}</td>
+              <td>${c.student_email}</td>
+              <td>Sem ${c.semester}</td>
+              <td style="max-width: 200px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${c.reason}">${c.reason}</td>
+              <td>${formatDate(c.classified_date)}</td>
+              <td>
+                <div class="flex gap-sm">
+                  <a href="activity-new.html?classificationId=${c.id}" class="btn btn-sm btn-outline">+ Activity</a>
+                  <button class="btn btn-sm btn-secondary" onclick="editClassification(${c.id})">Edit</button>
+                  <button class="btn btn-sm btn-danger" onclick="deleteClassification(${c.id})">Delete</button>
+                </div>
+              </td>
+            </tr>
+          `).join('');
+                } else {
+                    tbody.innerHTML = `
+            <tr>
+              <td colspan="7">
+                <div class="empty-state">
+                  <div class="empty-state-icon">📋</div>
+                  <h3>No Weak Students Yet</h3>
+                  <p>Click the button above to classify a student needing support</p>
+                </div>
+              </td>
+            </tr>
+          `;
+                }
+            } catch (error) {
+                console.error('Load error:', error);
+                showAlert('Failed to load students', 'error');
+            }
+        }
+
+        function showAddModal() {
+            editingId = null;
+            document.getElementById('modal-title').textContent = 'Classify Weak Student';
+            document.getElementById('classify-form').reset();
+            document.getElementById('modal-overlay').classList.add('active');
+        }
+
+        function closeModal() {
+            document.getElementById('modal-overlay').classList.remove('active');
+        }
+
+        async function editClassification(id) {
+            try {
+                const response = await authFetch(`/students?category=weak`);
+                const data = await response.json();
+                const classification = data.classifications.find(c => c.id === id);
+
+                if (classification) {
+                    editingId = id;
+                    document.getElementById('modal-title').textContent = 'Edit Classification';
+                    document.getElementById('student-name').value = classification.student_name;
+                    document.getElementById('roll-number').value = classification.roll_number;
+                    document.getElementById('student-email').value = classification.student_email;
+                    document.getElementById('semester').value = classification.semester;
+                    document.getElementById('academic-year').value = classification.academic_year;
+                    document.getElementById('reason').value = classification.reason;
+
+                    // Disable student fields when editing
+                    document.getElementById('student-name').disabled = true;
+                    document.getElementById('roll-number').disabled = true;
+                    document.getElementById('student-email').disabled = true;
+                    document.getElementById('semester').disabled = true;
+                    document.getElementById('academic-year').disabled = true;
+
+                    document.getElementById('modal-overlay').classList.add('active');
+                }
+            } catch (error) {
+                showAlert('Failed to load classification', 'error');
+            }
+        }
+
+        async function deleteClassification(id) {
+            if (!confirm('Are you sure you want to delete this classification? All related activities will also be deleted.')) {
+                return;
+            }
+
+            try {
+                const response = await authFetch(`/students/classify/${id}`, { method: 'DELETE' });
+                if (response.ok) {
+                    showAlert('Classification deleted', 'success');
+                    loadStudents();
+                } else {
+                    const data = await response.json();
+                    throw new Error(data.message);
+                }
+            } catch (error) {
+                showAlert(error.message || 'Failed to delete', 'error');
+            }
+        }
+
+        document.getElementById('classify-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const btn = document.getElementById('submit-btn');
+            btn.disabled = true;
+
+            try {
+                let response;
+                if (editingId) {
+                    // Update
+                    response = await authFetch(`/students/classify/${editingId}`, {
+                        method: 'PUT',
+                        body: JSON.stringify({
+                            reason: document.getElementById('reason').value
+                        })
+                    });
+                } else {
+                    // Create
+                    response = await authFetch('/students/classify', {
+                        method: 'POST',
+                        body: JSON.stringify({
+                            studentName: document.getElementById('student-name').value,
+                            rollNumber: document.getElementById('roll-number').value,
+                            studentEmail: document.getElementById('student-email').value,
+                            semester: parseInt(document.getElementById('semester').value),
+                            academicYear: document.getElementById('academic-year').value,
+                            category: 'weak',
+                            reason: document.getElementById('reason').value
+                        })
+                    });
+                }
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.message);
+                }
+
+                showAlert(editingId ? 'Classification updated' : 'Student classified', 'success');
+                closeModal();
+
+                // Re-enable fields
+                ['student-name', 'roll-number', 'student-email', 'semester', 'academic-year'].forEach(id => {
+                    document.getElementById(id).disabled = false;
+                });
+
+                loadStudents();
+            } catch (error) {
+                showAlert(error.message || 'Failed to save', 'error');
+            } finally {
+                btn.disabled = false;
+            }
+        });
+
+        loadStudents();
+    </script>
+</body>
+
+</html>

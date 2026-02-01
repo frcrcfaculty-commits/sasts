@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Manage Users | SASTS</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+
+<body>
+    <div class="page-wrapper">
+        <div id="sidebar-container"></div>
+
+        <main class="main-content">
+            <div class="page-header">
+                <div>
+                    <h1 class="page-title">Manage Users</h1>
+                    <p class="page-subtitle" id="page-subtitle">Manage faculty in your department</p>
+                </div>
+                <button class="btn btn-primary" onclick="showAddModal()">+ Add Faculty</button>
+            </div>
+
+            <div id="alert-container"></div>
+
+            <!-- Department filter for superadmin -->
+            <div class="card mb-lg" id="dept-filter-card" style="display: none;">
+                <div class="card-body">
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label class="form-label">Filter by Department</label>
+                        <select id="dept-filter" class="form-select" style="max-width: 300px;">
+                            <option value="">All Departments</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-body">
+                    <div class="table-container">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>Name</th>
+                                    <th>Email</th>
+                                    <th>Role</th>
+                                    <th>Department</th>
+                                    <th>Status</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="users-body">
+                                <tr>
+                                    <td colspan="6" class="text-center text-muted">Loading...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Add User Modal -->
+    <div class="modal-overlay" id="add-modal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3>Add New Faculty</h3>
+                <button class="btn-icon" onclick="closeModal('add-modal')">✕</button>
+            </div>
+            <form id="add-form">
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label class="form-label">Full Name</label>
+                        <input type="text" id="add-name" class="form-input" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Email</label>
+                        <input type="email" id="add-email" class="form-input" required>
+                    </div>
+                    <div class="form-group" id="add-dept-group" style="display: none;">
+                        <label class="form-label">Department</label>
+                        <select id="add-dept" class="form-select">
+                            <option value="">Select department</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Password</label>
+                        <input type="password" id="add-password" class="form-input" required minlength="6">
+                        <p class="form-hint">Minimum 6 characters</p>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('add-modal')">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Add Faculty</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Reset Password Modal -->
+    <div class="modal-overlay" id="reset-modal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3>Reset Password</h3>
+                <button class="btn-icon" onclick="closeModal('reset-modal')">✕</button>
+            </div>
+            <form id="reset-form">
+                <div class="modal-body">
+                    <p class="text-muted mb-lg">Resetting password for: <strong id="reset-user-name"></strong></p>
+                    <input type="hidden" id="reset-user-id">
+                    <div class="form-group">
+                        <label class="form-label">New Password</label>
+                        <input type="password" id="new-password" class="form-input" required minlength="6">
+                        <p class="form-hint">Minimum 6 characters</p>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('reset-modal')">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Reset Password</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script src="js/auth.js"></script>
+    <script>
+        if (!requireAuth()) window.location.href = 'index.html';
+        document.getElementById('sidebar-container').innerHTML = buildSidebar();
+
+        const user = getUser();
+
+        // Check permissions
+        if (user.role !== 'admin' && user.role !== 'superadmin') {
+            window.location.href = 'dashboard.html';
+        }
+
+        // Show department filter for superadmin
+        if (user.role === 'superadmin') {
+            document.getElementById('dept-filter-card').style.display = 'block';
+            document.getElementById('add-dept-group').style.display = 'block';
+            document.getElementById('page-subtitle').textContent = 'Manage users across all departments';
+            loadDepartments();
+        }
+
+        async function loadDepartments() {
+            try {
+                const response = await authFetch('/superadmin/departments');
+                const data = await response.json();
+
+                const filterSelect = document.getElementById('dept-filter');
+                const addSelect = document.getElementById('add-dept');
+
+                data.departments.forEach(dept => {
+                    const opt1 = document.createElement('option');
+                    opt1.value = dept.id;
+                    opt1.textContent = dept.name;
+                    filterSelect.appendChild(opt1);
+
+                    const opt2 = document.createElement('option');
+                    opt2.value = dept.id;
+                    opt2.textContent = dept.name;
+                    addSelect.appendChild(opt2);
+                });
+            } catch (error) {
+                console.error('Failed to load departments:', error);
+            }
+        }
+
+        async function loadUsers() {
+            try {
+                let url = '/admin/users';
+                if (user.role === 'superadmin') {
+                    const deptId = document.getElementById('dept-filter')?.value;
+                    if (deptId) url += `?departmentId=${deptId}`;
+                }
+
+                const response = await authFetch(url);
+                const data = await response.json();
+
+                const tbody = document.getElementById('users-body');
+                if (data.users && data.users.length > 0) {
+                    tbody.innerHTML = data.users.map(u => `
+            <tr>
+              <td><strong>${u.name}</strong></td>
+              <td>${u.email}</td>
+              <td><span class="badge badge-primary">${u.role}</span></td>
+              <td>${u.department_name || '-'}</td>
+              <td>
+                <span class="badge ${u.is_active ? 'badge-completed' : 'badge-pending'}">
+                  ${u.is_active ? 'Active' : 'Inactive'}
+                </span>
+              </td>
+              <td>
+                <div class="flex gap-sm">
+                  <button class="btn btn-sm btn-secondary" onclick="showResetModal(${u.id}, '${u.name}')">Reset Password</button>
+                  ${u.id !== user.id && u.role !== 'superadmin' ? `
+                    <button class="btn btn-sm ${u.is_active ? 'btn-danger' : 'btn-success'}" onclick="toggleUserStatus(${u.id}, ${!u.is_active})">
+                      ${u.is_active ? 'Deactivate' : 'Activate'}
+                    </button>
+                  ` : ''}
+                </div>
+              </td>
+            </tr>
+          `).join('');
+                } else {
+                    tbody.innerHTML = `
+            <tr>
+              <td colspan="6" class="text-center text-muted">No users found</td>
+            </tr>
+          `;
+                }
+            } catch (error) {
+                console.error('Load error:', error);
+                showAlert('Failed to load users', 'error');
+            }
+        }
+
+        document.getElementById('dept-filter')?.addEventListener('change', loadUsers);
+
+        function showAddModal() {
+            document.getElementById('add-form').reset();
+            document.getElementById('add-modal').classList.add('active');
+        }
+
+        function showResetModal(userId, userName) {
+            document.getElementById('reset-user-id').value = userId;
+            document.getElementById('reset-user-name').textContent = userName;
+            document.getElementById('reset-form').reset();
+            document.getElementById('reset-modal').classList.add('active');
+        }
+
+        function closeModal(id) {
+            document.getElementById(id).classList.remove('active');
+        }
+
+        document.getElementById('add-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            try {
+                const response = await authFetch('/admin/users', {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        name: document.getElementById('add-name').value,
+                        email: document.getElementById('add-email').value,
+                        password: document.getElementById('add-password').value,
+                        departmentId: user.role === 'superadmin' ? document.getElementById('add-dept').value : null
+                    })
+                });
+
+                const data = await response.json();
+                if (!response.ok) throw new Error(data.message);
+
+                showAlert('Faculty added successfully', 'success');
+                closeModal('add-modal');
+                loadUsers();
+            } catch (error) {
+                showAlert(error.message || 'Failed to add user', 'error');
+            }
+        });
+
+        document.getElementById('reset-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            try {
+                const userId = document.getElementById('reset-user-id').value;
+                const response = await authFetch(`/admin/users/${userId}/reset-password`, {
+                    method: 'PUT',
+                    body: JSON.stringify({
+                        newPassword: document.getElementById('new-password').value
+                    })
+                });
+
+                const data = await response.json();
+                if (!response.ok) throw new Error(data.message);
+
+                showAlert('Password reset successfully', 'success');
+                closeModal('reset-modal');
+            } catch (error) {
+                showAlert(error.message || 'Failed to reset password', 'error');
+            }
+        });
+
+        async function toggleUserStatus(userId, activate) {
+            if (!confirm(`Are you sure you want to ${activate ? 'activate' : 'deactivate'} this user?`)) return;
+
+            try {
+                const response = await authFetch(`/admin/users/${userId}/status`, {
+                    method: 'PUT',
+                    body: JSON.stringify({ isActive: activate })
+                });
+
+                const data = await response.json();
+                if (!response.ok) throw new Error(data.message);
+
+                showAlert(`User ${activate ? 'activated' : 'deactivated'}`, 'success');
+                loadUsers();
+            } catch (error) {
+                showAlert(error.message || 'Failed to update status', 'error');
+            }
+        }
+
+        loadUsers();
+    </script>
+</body>
+
+</html>

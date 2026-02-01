@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reports & Exports | SASTS</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/styles.css">
+    <style>
+        .export-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: var(--space-lg);
+            margin-bottom: var(--space-xl);
+        }
+
+        .export-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            padding: var(--space-lg);
+            transition: all var(--transition-fast);
+        }
+
+        .export-card:hover {
+            border-color: var(--primary);
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(102, 126, 234, 0.15);
+        }
+
+        .export-card-icon {
+            width: 48px;
+            height: 48px;
+            background: linear-gradient(135deg, var(--primary), var(--primary-hover));
+            border-radius: var(--radius-md);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: var(--space-md);
+            font-size: 1.5rem;
+        }
+
+        .export-card-title {
+            font-size: 1.125rem;
+            font-weight: 600;
+            margin-bottom: var(--space-sm);
+        }
+
+        .export-card-desc {
+            color: var(--text-muted);
+            font-size: 0.875rem;
+            margin-bottom: var(--space-md);
+        }
+
+        .export-options {
+            display: flex;
+            gap: var(--space-sm);
+            flex-wrap: wrap;
+        }
+
+        .filter-row {
+            display: flex;
+            gap: var(--space-md);
+            margin-bottom: var(--space-lg);
+            flex-wrap: wrap;
+            align-items: flex-end;
+        }
+
+        .filter-group {
+            display: flex;
+            flex-direction: column;
+            gap: var(--space-xs);
+        }
+
+        .filter-group label {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="page-wrapper">
+        <div id="sidebar-container"></div>
+
+        <main class="main-content">
+            <div class="page-header">
+                <div>
+                    <h1 class="page-title">📊 Reports & Exports</h1>
+                    <p class="page-subtitle">Download reports and export data for all departments</p>
+                </div>
+            </div>
+
+            <div id="alert-container"></div>
+
+            <!-- Filters -->
+            <div class="card">
+                <div class="card-header">
+                    <h3>🔍 Export Filters</h3>
+                </div>
+                <div class="card-body">
+                    <div class="filter-row">
+                        <div class="filter-group">
+                            <label>Department</label>
+                            <select id="filter-department" class="form-select">
+                                <option value="all">All Departments</option>
+                            </select>
+                        </div>
+                        <div class="filter-group">
+                            <label>Category</label>
+                            <select id="filter-category" class="form-select">
+                                <option value="">All Categories</option>
+                                <option value="weak">Weak Students</option>
+                                <option value="strong">Strong Students</option>
+                            </select>
+                        </div>
+                        <div class="filter-group">
+                            <label>Activity Status</label>
+                            <select id="filter-status" class="form-select">
+                                <option value="">All Statuses</option>
+                                <option value="pending">Pending</option>
+                                <option value="completed">Completed</option>
+                                <option value="cancelled">Cancelled</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Export Cards -->
+            <div class="export-grid">
+                <!-- Student Export -->
+                <div class="export-card">
+                    <div class="export-card-icon">👨‍🎓</div>
+                    <div class="export-card-title">Student Classifications</div>
+                    <div class="export-card-desc">Export all classified students (strong/weak) with their classification
+                        details and faculty assignments.</div>
+                    <div class="export-options">
+                        <button class="btn btn-primary btn-sm" onclick="exportStudents('csv')">
+                            📄 CSV
+                        </button>
+                        <button class="btn btn-outline btn-sm" onclick="exportStudents('json')">
+                            📋 JSON
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Activities Export -->
+                <div class="export-card">
+                    <div class="export-card-icon">📝</div>
+                    <div class="export-card-title">Activities Report</div>
+                    <div class="export-card-desc">Export all academic support activities with completion status and
+                        review ratings.</div>
+                    <div class="export-options">
+                        <button class="btn btn-primary btn-sm" onclick="exportActivities('csv')">
+                            📄 CSV
+                        </button>
+                        <button class="btn btn-outline btn-sm" onclick="exportActivities('json')">
+                            📋 JSON
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Department Report -->
+                <div class="export-card">
+                    <div class="export-card-icon">🏢</div>
+                    <div class="export-card-title">Department Report</div>
+                    <div class="export-card-desc">Comprehensive department-wise report with faculty, student counts, and
+                        activity summaries.</div>
+                    <div class="export-options">
+                        <button class="btn btn-primary btn-sm" onclick="exportDepartment('csv')">
+                            📄 CSV
+                        </button>
+                        <button class="btn btn-outline btn-sm" onclick="exportDepartment('pdf')">
+                            📕 PDF
+                        </button>
+                    </div>
+                </div>
+
+                <!-- College Report -->
+                <div class="export-card">
+                    <div class="export-card-icon">🎓</div>
+                    <div class="export-card-title">College-Wide Report</div>
+                    <div class="export-card-desc">Complete college summary including all departments, total
+                        classifications, and activity statistics.</div>
+                    <div class="export-options">
+                        <button class="btn btn-primary btn-sm" onclick="exportCollege('csv')">
+                            📄 CSV
+                        </button>
+                        <button class="btn btn-outline btn-sm" onclick="exportCollege('pdf')">
+                            📕 PDF
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Faculty Report -->
+                <div class="export-card">
+                    <div class="export-card-icon">👩‍🏫</div>
+                    <div class="export-card-title">Faculty Performance</div>
+                    <div class="export-card-desc">Download individual or all faculty reports with their classified
+                        students and activities.</div>
+                    <div class="export-options">
+                        <button class="btn btn-primary btn-sm" onclick="exportFaculty('csv')">
+                            📄 CSV
+                        </button>
+                        <button class="btn btn-outline btn-sm" onclick="exportFaculty('pdf')">
+                            📕 PDF
+                        </button>
+                    </div>
+                </div>
+
+                <!-- AI Activities Export -->
+                <div class="export-card">
+                    <div class="export-card-icon">🤖</div>
+                    <div class="export-card-title">AI Generated Activities</div>
+                    <div class="export-card-desc">Export all AI-generated activities (quizzes, crosswords, flashcards)
+                        with engagement stats.</div>
+                    <div class="export-options">
+                        <button class="btn btn-primary btn-sm" onclick="exportAIActivities('json')">
+                            📋 JSON
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Quick Stats -->
+            <div class="card">
+                <div class="card-header">
+                    <h3>📈 Quick Stats</h3>
+                </div>
+                <div class="card-body">
+                    <div class="stats-grid">
+                        <div class="stat-card">
+                            <div class="stat-value" id="stat-departments">-</div>
+                            <div class="stat-label">Departments</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value" id="stat-faculty">-</div>
+                            <div class="stat-label">Faculty</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value" id="stat-students">-</div>
+                            <div class="stat-label">Classified Students</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value" id="stat-weak">-</div>
+                            <div class="stat-label">Weak</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value" id="stat-strong">-</div>
+                            <div class="stat-label">Strong</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="js/auth.js"></script>
+    <script>
+        if (!requireAuth()) window.location.href = 'index.html';
+        document.getElementById('sidebar-container').innerHTML = buildSidebar();
+
+        // Load departments and stats
+        async function loadData() {
+            try {
+                // Load departments
+                const deptRes = await authFetch('/superadmin/departments');
+                const deptData = await deptRes.json();
+
+                const deptSelect = document.getElementById('filter-department');
+                deptData.departments.forEach(dept => {
+                    const opt = document.createElement('option');
+                    opt.value = dept.id;
+                    opt.textContent = dept.name;
+                    deptSelect.appendChild(opt);
+                });
+
+                // Load stats
+                const statsRes = await authFetch('/superadmin/stats');
+                const statsData = await statsRes.json();
+
+                document.getElementById('stat-departments').textContent = statsData.summary.totalDepartments;
+                document.getElementById('stat-faculty').textContent = statsData.summary.totalFaculty;
+                document.getElementById('stat-students').textContent = statsData.summary.totalStudents;
+                document.getElementById('stat-weak').textContent = statsData.summary.totalWeak;
+                document.getElementById('stat-strong').textContent = statsData.summary.totalStrong;
+            } catch (error) {
+                console.error('Load data error:', error);
+            }
+        }
+
+        // Export functions
+        async function exportStudents(format) {
+            const dept = document.getElementById('filter-department').value;
+            const category = document.getElementById('filter-category').value;
+
+            const params = new URLSearchParams({ format });
+            if (dept !== 'all') params.append('department_id', dept);
+            if (category) params.append('category', category);
+
+            downloadFile(`/reports/students/export?${params}`, `students_${category || 'all'}.${format}`);
+        }
+
+        async function exportActivities(format) {
+            const dept = document.getElementById('filter-department').value;
+            const status = document.getElementById('filter-status').value;
+
+            const params = new URLSearchParams({ format });
+            if (dept !== 'all') params.append('department_id', dept);
+            if (status) params.append('status', status);
+
+            downloadFile(`/reports/activities/export?${params}`, `activities.${format}`);
+        }
+
+        async function exportDepartment(format) {
+            const dept = document.getElementById('filter-department').value;
+            if (dept === 'all') {
+                showAlert('Please select a specific department', 'warning');
+                return;
+            }
+            downloadFile(`/reports/department/${dept}?format=${format}`, `department_report.${format}`);
+        }
+
+        async function exportCollege(format) {
+            downloadFile(`/reports/college?format=${format}`, `college_report.${format}`);
+        }
+
+        async function exportFaculty(format) {
+            downloadFile(`/reports/faculty?format=${format}`, `faculty_report.${format}`);
+        }
+
+        async function exportAIActivities(format) {
+            try {
+                const res = await authFetch('/analytics/summary');
+                const data = await res.json();
+
+                const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'ai_activities_report.json';
+                a.click();
+                URL.revokeObjectURL(url);
+            } catch (error) {
+                showAlert('Export failed', 'error');
+            }
+        }
+
+        async function downloadFile(endpoint, filename) {
+            try {
+                const token = getToken();
+                const res = await fetch(`/api${endpoint}`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                if (!res.ok) {
+                    const error = await res.json();
+                    showAlert(error.message || 'Export failed', 'error');
+                    return;
+                }
+
+                const blob = await res.blob();
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = filename;
+                a.click();
+                URL.revokeObjectURL(url);
+
+                showAlert('Export downloaded successfully!', 'success');
+            } catch (error) {
+                console.error('Download error:', error);
+                showAlert('Export failed', 'error');
+            }
+        }
+
+        loadData();
+    </script>
+</body>
+
+</html>
