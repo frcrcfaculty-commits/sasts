@@ -1,0 +1,3 @@
+# Uploaded files contain real student results; never ship them.
+uploads/
+node_modules/

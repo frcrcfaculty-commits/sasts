@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Activities | SASTS</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+
+<body>
+    <div class="page-wrapper">
+        <div id="sidebar-container"></div>
+
+        <main class="main-content">
+            <div class="page-header">
+                <div>
+                    <h1 class="page-title">Activities</h1>
+                    <p class="page-subtitle">Track activities for classified students</p>
+                </div>
+                <a href="activity-new.html" class="btn btn-primary">+ New Activity</a>
+            </div>
+
+            <div id="alert-container"></div>
+
+            <div class="tabs">
+                <div class="tab active" data-filter="all">All</div>
+                <div class="tab" data-filter="pending">Pending</div>
+                <div class="tab" data-filter="completed">Completed</div>
+            </div>
+
+            <div class="card">
+                <div class="card-body">
+                    <div class="table-container">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>Activity</th>
+                                    <th>Type</th>
+                                    <th>Student</th>
+                                    <th>Category</th>
+                                    <th>Status</th>
+                                    <th>Scheduled</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="activities-body">
+                                <tr>
+                                    <td colspan="7" class="text-center text-muted">Loading...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Reviews Modal -->
+    <div class="modal-overlay" id="reviews-modal">
+        <div class="modal" style="max-width: 600px;">
+            <div class="modal-header">
+                <h3>Student Feedback</h3>
+                <button class="btn-icon" onclick="closeReviewsModal()">✕</button>
+            </div>
+            <div class="modal-body" id="reviews-content">
+                Loading...
+            </div>
+        </div>
+    </div>
+
+    <script src="js/auth.js"></script>
+    <script>
+        if (!requireAuth()) window.location.href = 'index.html';
+        document.getElementById('sidebar-container').innerHTML = buildSidebar();
+
+        let allActivities = [];
+        let currentFilter = 'all';
+
+        async function loadActivities() {
+            try {
+                const response = await authFetch('/activities');
+                const data = await response.json();
+                allActivities = data.activities || [];
+                renderActivities();
+            } catch (error) {
+                console.error('Load error:', error);
+                showAlert('Failed to load activities', 'error');
+            }
+        }
+
+        function renderActivities() {
+            let filtered = allActivities;
+            if (currentFilter !== 'all') {
+                filtered = allActivities.filter(a => a.completion_status === currentFilter);
+            }
+
+            const tbody = document.getElementById('activities-body');
+            if (filtered.length > 0) {
+                tbody.innerHTML = filtered.map(a => `
+          <tr>
+            <td>
+              <strong>${a.title}</strong>
+              <div class="text-sm text-muted" style="max-width: 200px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${a.description.substring(0, 50)}...</div>
+            </td>
+            <td>${formatActivityType(a.activity_type)}</td>
+            <td>${a.student_name}</td>
+            <td><span class="badge badge-${a.category}">${a.category}</span></td>
+            <td><span class="badge badge-${a.completion_status}">${a.completion_status}</span></td>
+            <td>${a.scheduled_date ? formatDate(a.scheduled_date) : 'Not set'}</td>
+            <td>
+              <div class="flex gap-sm">
+                ${a.completion_status === 'pending' ? `
+                  <button class="btn btn-sm btn-success" onclick="markComplete(${a.id})">Complete</button>
+                  <button class="btn btn-sm btn-secondary" onclick="deleteActivity(${a.id})">Delete</button>
+                ` : `
+                  <button class="btn btn-sm btn-outline" onclick="viewReviews(${a.id})">Reviews</button>
+                `}
+              </div>
+            </td>
+          </tr>
+        `).join('');
+            } else {
+                tbody.innerHTML = `
+          <tr>
+            <td colspan="7">
+              <div class="empty-state">
+                <div class="empty-state-icon">📝</div>
+                <h3>No Activities Found</h3>
+                <p>${currentFilter === 'all' ? 'Create activities for your classified students' : `No ${currentFilter} activities`}</p>
+              </div>
+            </td>
+          </tr>
+        `;
+            }
+        }
+
+        // Tab click handlers
+        document.querySelectorAll('.tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                tab.classList.add('active');
+                currentFilter = tab.dataset.filter;
+                renderActivities();
+            });
+        });
+
+        async function markComplete(id) {
+            if (!confirm('Mark this activity as completed? An email will be sent to the student for feedback.')) return;
+
+            try {
+                const response = await authFetch(`/activities/${id}/complete`, { method: 'POST' });
+                const data = await response.json();
+
+                if (!response.ok) throw new Error(data.message);
+
+                showAlert('Activity marked as completed. Review request sent to student.', 'success');
+                loadActivities();
+            } catch (error) {
+                showAlert(error.message || 'Failed to complete activity', 'error');
+            }
+        }
+
+        async function deleteActivity(id) {
+            if (!confirm('Are you sure you want to delete this activity?')) return;
+
+            try {
+                const response = await authFetch(`/activities/${id}`, { method: 'DELETE' });
+                if (response.ok) {
+                    showAlert('Activity deleted', 'success');
+                    loadActivities();
+                } else {
+                    const data = await response.json();
+                    throw new Error(data.message);
+                }
+            } catch (error) {
+                showAlert(error.message || 'Failed to delete', 'error');
+            }
+        }
+
+        async function viewReviews(id) {
+            document.getElementById('reviews-modal').classList.add('active');
+            document.getElementById('reviews-content').innerHTML = 'Loading...';
+
+            try {
+                const response = await authFetch(`/reviews/activity/${id}`);
+                const data = await response.json();
+
+                let content = `
+          <div style="margin-bottom: var(--space-lg);">
+            <p><strong>Average Rating:</strong> ${data.avg_rating ? data.avg_rating.toFixed(1) : 'N/A'}/5</p>
+            <p><strong>Total Reviews:</strong> ${data.review_count || 0}</p>
+          </div>
+        `;
+
+                if (data.reviews && data.reviews.length > 0) {
+                    content += data.reviews.map(r => `
+            <div style="border: 1px solid var(--border); border-radius: var(--radius-md); padding: var(--space-md); margin-bottom: var(--space-md);">
+              <div style="display: flex; justify-content: space-between; margin-bottom: var(--space-sm);">
+                <span class="text-muted">${r.display_name}</span>
+                <span style="color: #fbbf24;">${'★'.repeat(r.rating)}${'☆'.repeat(5 - r.rating)}</span>
+              </div>
+              ${r.feedback_text ? `<p>${r.feedback_text}</p>` : '<p class="text-muted">No written feedback</p>'}
+              <p class="text-sm text-muted">${formatDateTime(r.submitted_at)}</p>
+            </div>
+          `).join('');
+                } else {
+                    content += '<p class="text-muted text-center">No reviews received yet</p>';
+                }
+
+                document.getElementById('reviews-content').innerHTML = content;
+            } catch (error) {
+                document.getElementById('reviews-content').innerHTML = '<p class="text-muted">Failed to load reviews</p>';
+            }
+        }
+
+        function closeReviewsModal() {
+            document.getElementById('reviews-modal').classList.remove('active');
+        }
+
+        loadActivities();
+    </script>
+</body>
+
+</html>

@@ -3,7 +3,16 @@ const fs = require('fs');
 const path = require('path');
 require('dotenv').config();
 
-const dbPath = path.resolve(__dirname, '..', process.env.DB_PATH || './data/sasts.db');
+// On Vercel the code directory is read-only: the database lives in /tmp and
+// each cold start begins from the bundled demo snapshot (fictional data).
+const dbPath = process.env.VERCEL
+  ? '/tmp/sasts/sasts.db'
+  : path.resolve(__dirname, '..', process.env.DB_PATH || './data/sasts.db');
+const demoSeedPath = path.resolve(__dirname, '..', 'demo_seed.db');
+if (process.env.VERCEL && !fs.existsSync(dbPath) && fs.existsSync(demoSeedPath)) {
+  fs.mkdirSync(path.dirname(dbPath), { recursive: true });
+  fs.copyFileSync(demoSeedPath, dbPath);
+}
 let db = null;
 
 // Initialize database

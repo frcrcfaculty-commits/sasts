@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Submit Feedback | SASTS</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+
+<body>
+    <div class="review-container">
+        <div class="review-card" id="review-card">
+            <div style="font-size: 3rem; margin-bottom: var(--space-lg);">📝</div>
+            <h1>Student Feedback</h1>
+            <p class="text-muted" style="margin-bottom: var(--space-lg);">Your feedback is anonymous and helps us
+                improve</p>
+
+            <div id="loading" style="padding: var(--space-xl);">
+                <div class="spinner" style="margin: 0 auto;"></div>
+                <p class="text-muted" style="margin-top: var(--space-lg);">Loading activity details...</p>
+            </div>
+
+            <div id="error-state" class="hidden">
+                <div style="font-size: 3rem; margin-bottom: var(--space-lg);">❌</div>
+                <h2>Invalid or Expired Link</h2>
+                <p class="text-muted">This review link is no longer valid. Please contact your faculty if you need a new
+                    link.</p>
+            </div>
+
+            <div id="already-submitted" class="hidden">
+                <div style="font-size: 3rem; margin-bottom: var(--space-lg);">✅</div>
+                <h2>Already Submitted</h2>
+                <p class="text-muted">You have already submitted feedback for this activity. Thank you!</p>
+            </div>
+
+            <form id="review-form" class="hidden">
+                <div id="activity-info"
+                    style="background: var(--bg-secondary); padding: var(--space-lg); border-radius: var(--radius-lg); margin-bottom: var(--space-xl); text-align: left;">
+                    <!-- Activity info will be inserted here -->
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" style="text-align: center;">How would you rate this activity?</label>
+                    <div class="review-rating" id="star-rating">
+                        <span class="star" data-value="1">☆</span>
+                        <span class="star" data-value="2">☆</span>
+                        <span class="star" data-value="3">☆</span>
+                        <span class="star" data-value="4">☆</span>
+                        <span class="star" data-value="5">☆</span>
+                    </div>
+                    <input type="hidden" id="rating" required>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Your Feedback (Optional)</label>
+                    <textarea id="feedback" class="form-textarea"
+                        placeholder="Share your thoughts about this activity..." style="min-height: 120px;"></textarea>
+                </div>
+
+                <button type="submit" class="btn btn-primary btn-lg" style="width: 100%;" id="submit-btn">
+                    Submit Feedback
+                </button>
+
+                <p class="text-sm text-muted" style="margin-top: var(--space-lg);">
+                    🔒 Your response is completely anonymous
+                </p>
+            </form>
+
+            <div id="success-state" class="hidden">
+                <div style="font-size: 3rem; margin-bottom: var(--space-lg);">🎉</div>
+                <h2>Thank You!</h2>
+                <p class="text-muted">Your feedback has been submitted successfully.</p>
+                <p style="margin-top: var(--space-lg);">
+                    <a href="https://fcrit.ac.in" class="btn btn-primary">Visit College Website</a>
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const token = new URLSearchParams(window.location.search).get('token');
+        let selectedRating = 0;
+
+        // Star rating interaction
+        document.querySelectorAll('#star-rating .star').forEach(star => {
+            star.addEventListener('click', () => {
+                selectedRating = parseInt(star.dataset.value);
+                document.getElementById('rating').value = selectedRating;
+                updateStars();
+            });
+
+            star.addEventListener('mouseover', () => {
+                highlightStars(parseInt(star.dataset.value));
+            });
+        });
+
+        document.getElementById('star-rating').addEventListener('mouseleave', () => {
+            updateStars();
+        });
+
+        function highlightStars(count) {
+            document.querySelectorAll('#star-rating .star').forEach((star, index) => {
+                star.textContent = index < count ? '★' : '☆';
+                star.style.color = index < count ? '#fbbf24' : 'var(--text-muted)';
+            });
+        }
+
+        function updateStars() {
+            highlightStars(selectedRating);
+        }
+
+        // Load activity info
+        async function loadActivityInfo() {
+            if (!token) {
+                showError();
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/reviews/info/${token}`);
+                const data = await response.json();
+
+                if (!response.ok) {
+                    if (data.code === 'ALREADY_SUBMITTED') {
+                        showAlreadySubmitted();
+                    } else {
+                        showError();
+                    }
+                    return;
+                }
+
+                document.getElementById('activity-info').innerHTML = `
+          <h3 style="margin-bottom: var(--space-sm);">${data.activity.title}</h3>
+          <p class="text-muted">Type: ${formatActivityType(data.activity.type)}</p>
+          <p class="text-muted">Faculty: ${data.activity.facultyName}</p>
+        `;
+
+                document.getElementById('loading').classList.add('hidden');
+                document.getElementById('review-form').classList.remove('hidden');
+            } catch (error) {
+                showError();
+            }
+        }
+
+        function showError() {
+            document.getElementById('loading').classList.add('hidden');
+            document.getElementById('error-state').classList.remove('hidden');
+        }
+
+        function showAlreadySubmitted() {
+            document.getElementById('loading').classList.add('hidden');
+            document.getElementById('already-submitted').classList.remove('hidden');
+        }
+
+        function showSuccess() {
+            document.getElementById('review-form').classList.add('hidden');
+            document.getElementById('success-state').classList.remove('hidden');
+        }
+
+        function formatActivityType(type) {
+            const types = {
+                'notes': 'Extra Notes',
+                'lecture': 'Extra Lecture',
+                'interactive': 'Interactive Activity',
+                'nptel_course': 'NPTEL Course',
+                'assignment': 'Advanced Assignment',
+                'tutorial': 'Additional Tutorial',
+                'extra_course': 'Extra Course'
+            };
+            return types[type] || type;
+        }
+
+        // Submit form
+        document.getElementById('review-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            if (!selectedRating) {
+                alert('Please select a rating');
+                return;
+            }
+
+            const btn = document.getElementById('submit-btn');
+            btn.disabled = true;
+            btn.textContent = 'Submitting...';
+
+            try {
+                const response = await fetch(`/api/reviews/${token}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        rating: selectedRating,
+                        feedbackText: document.getElementById('feedback').value
+                    })
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.message);
+                }
+
+                showSuccess();
+            } catch (error) {
+                alert(error.message || 'Failed to submit feedback');
+                btn.disabled = false;
+                btn.textContent = 'Submit Feedback';
+            }
+        });
+
+        loadActivityInfo();
+    </script>
+</body>
+
+</html>

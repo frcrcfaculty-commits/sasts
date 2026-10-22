@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reports | SASTS</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+
+<body>
+    <div class="page-wrapper">
+        <div id="sidebar-container"></div>
+
+        <main class="main-content">
+            <div class="page-header">
+                <div>
+                    <h1 class="page-title">Reports</h1>
+                    <p class="page-subtitle">Generate and download reports</p>
+                </div>
+            </div>
+
+            <div id="alert-container"></div>
+
+            <!-- Faculty Report -->
+            <div class="card mb-lg">
+                <div class="card-header">
+                    <h3>📊 My Activity Report</h3>
+                </div>
+                <div class="card-body">
+                    <p class="text-muted mb-lg">Download a report of all your classified students and activities.</p>
+                    <div class="flex gap-md">
+                        <button class="btn btn-primary" onclick="downloadFacultyReport('pdf')">
+                            📄 Download PDF
+                        </button>
+                        <button class="btn btn-secondary" onclick="downloadFacultyReport('csv')">
+                            📊 Download CSV
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Department Report (Admin/Superadmin only) -->
+            <div class="card mb-lg" id="dept-report-card" style="display: none;">
+                <div class="card-header">
+                    <h3>🏢 Department Report</h3>
+                </div>
+                <div class="card-body">
+                    <p class="text-muted mb-lg">Download department-wide reports with all faculty activities.</p>
+
+                    <div class="form-group">
+                        <label class="form-label">Report Type</label>
+                        <select id="dept-report-type" class="form-select" style="max-width: 300px;">
+                            <option value="all">All Students</option>
+                            <option value="weak">Weak Students Only</option>
+                            <option value="strong">Strong Students Only</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group" id="dept-select-group" style="display: none;">
+                        <label class="form-label">Department</label>
+                        <select id="dept-select" class="form-select" style="max-width: 300px;">
+                            <option value="">Select department</option>
+                        </select>
+                    </div>
+
+                    <div class="flex gap-md">
+                        <button class="btn btn-primary" onclick="downloadDeptReport('pdf')">
+                            📄 Download PDF
+                        </button>
+                        <button class="btn btn-secondary" onclick="downloadDeptReport('csv')">
+                            📊 Download CSV
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- College Report (Superadmin only) -->
+            <div class="card" id="college-report-card" style="display: none;">
+                <div class="card-header">
+                    <h3>🎓 College-Wide Report</h3>
+                </div>
+                <div class="card-body">
+                    <p class="text-muted mb-lg">Download a comprehensive report across all departments.</p>
+                    <div class="flex gap-md">
+                        <button class="btn btn-primary" onclick="downloadCollegeReport('pdf')">
+                            📄 Download PDF
+                        </button>
+                        <button class="btn btn-secondary" onclick="downloadCollegeReport('csv')">
+                            📊 Download CSV
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="js/auth.js"></script>
+    <script>
+        if (!requireAuth()) window.location.href = 'index.html';
+        document.getElementById('sidebar-container').innerHTML = buildSidebar();
+
+        const user = getUser();
+
+        // Show department report for admin/superadmin
+        if (user.role === 'admin' || user.role === 'superadmin') {
+            document.getElementById('dept-report-card').style.display = 'block';
+        }
+
+        // Show college report and department selector for superadmin
+        if (user.role === 'superadmin') {
+            document.getElementById('college-report-card').style.display = 'block';
+            document.getElementById('dept-select-group').style.display = 'block';
+            loadDepartments();
+        }
+
+        async function loadDepartments() {
+            try {
+                const response = await authFetch('/superadmin/departments');
+                const data = await response.json();
+
+                const select = document.getElementById('dept-select');
+                data.departments.forEach(dept => {
+                    const option = document.createElement('option');
+                    option.value = dept.id;
+                    option.textContent = dept.name;
+                    select.appendChild(option);
+                });
+            } catch (error) {
+                console.error('Failed to load departments:', error);
+            }
+        }
+
+        function downloadFacultyReport(format) {
+            const url = `/api/reports/faculty?format=${format}`;
+            downloadWithAuth(url, `faculty_report.${format}`);
+        }
+
+        function downloadDeptReport(format) {
+            const type = document.getElementById('dept-report-type').value;
+            let url = `/api/reports/department?type=${type}&format=${format}`;
+
+            if (user.role === 'superadmin') {
+                const deptId = document.getElementById('dept-select').value;
+                if (deptId) {
+                    url = `/api/reports/department/${deptId}?type=${type}&format=${format}`;
+                } else {
+                    showAlert('Please select a department', 'warning');
+                    return;
+                }
+            }
+
+            downloadWithAuth(url, `department_report.${format}`);
+        }
+
+        function downloadCollegeReport(format) {
+            const url = `/api/reports/college?format=${format}`;
+            downloadWithAuth(url, `college_report.${format}`);
+        }
+
+        async function downloadWithAuth(url, filename) {
+            try {
+                const response = await authFetch(url);
+
+                if (!response.ok) {
+                    const data = await response.json();
+                    throw new Error(data.message);
+                }
+
+                const blob = await response.blob();
+                const downloadUrl = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = downloadUrl;
+                a.download = filename;
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(downloadUrl);
+                a.remove();
+
+                showAlert('Report downloaded successfully!', 'success');
+            } catch (error) {
+                showAlert(error.message || 'Failed to download report', 'error');
+            }
+        }
+    </script>
+</body>
+
+</html>

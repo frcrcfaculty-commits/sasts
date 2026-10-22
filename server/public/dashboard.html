@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard | SASTS</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+
+<body>
+    <div class="page-wrapper">
+        <div id="sidebar-container"></div>
+
+        <main class="main-content">
+            <div class="page-header">
+                <div>
+                    <h1 class="page-title">Dashboard</h1>
+                    <p class="page-subtitle" id="welcome-text">Welcome back!</p>
+                </div>
+                <div class="flex gap-md">
+                    <a href="students-weak.html" class="btn btn-secondary">+ Add Weak Student</a>
+                    <a href="students-strong.html" class="btn btn-primary">+ Add Strong Student</a>
+                </div>
+            </div>
+
+            <div id="alert-container"></div>
+
+            <!-- Stats Grid -->
+            <div class="stats-grid">
+                <div class="stat-card weak">
+                    <div class="stat-value" id="weak-count">-</div>
+                    <div class="stat-label">Weak Students</div>
+                </div>
+                <div class="stat-card strong">
+                    <div class="stat-value" id="strong-count">-</div>
+                    <div class="stat-label">Strong Students</div>
+                </div>
+                <div class="stat-card primary">
+                    <div class="stat-value" id="activities-count">-</div>
+                    <div class="stat-label">Total Activities</div>
+                </div>
+                <div class="stat-card primary">
+                    <div class="stat-value" id="completed-count">-</div>
+                    <div class="stat-label">Completed</div>
+                </div>
+            </div>
+
+            <!-- Recent Classifications -->
+            <div class="card mb-lg">
+                <div class="card-header">
+                    <h3>Recent Classifications</h3>
+                    <a href="students-weak.html" class="btn btn-sm btn-secondary">View All</a>
+                </div>
+                <div class="card-body">
+                    <div class="table-container">
+                        <table class="table" id="classifications-table">
+                            <thead>
+                                <tr>
+                                    <th>Student</th>
+                                    <th>Roll No</th>
+                                    <th>Category</th>
+                                    <th>Semester</th>
+                                    <th>Date</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="classifications-body">
+                                <tr>
+                                    <td colspan="6" class="text-center text-muted">Loading...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Recent Activities -->
+            <div class="card">
+                <div class="card-header">
+                    <h3>Recent Activities</h3>
+                    <a href="activities.html" class="btn btn-sm btn-secondary">View All</a>
+                </div>
+                <div class="card-body">
+                    <div class="table-container">
+                        <table class="table" id="activities-table">
+                            <thead>
+                                <tr>
+                                    <th>Activity</th>
+                                    <th>Type</th>
+                                    <th>Student</th>
+                                    <th>Status</th>
+                                    <th>Date</th>
+                                </tr>
+                            </thead>
+                            <tbody id="activities-body">
+                                <tr>
+                                    <td colspan="5" class="text-center text-muted">Loading...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="js/auth.js"></script>
+    <script>
+        // Check auth
+        if (!requireAuth()) window.location.href = 'index.html';
+
+        // Build sidebar
+        document.getElementById('sidebar-container').innerHTML = buildSidebar();
+
+        // Set welcome text
+        const user = getUser();
+        document.getElementById('welcome-text').textContent = `Welcome back, ${user.name}!`;
+
+        // Load dashboard data
+        async function loadDashboard() {
+            try {
+                // Load stats
+                const statsRes = await authFetch('/students/stats');
+                const statsData = await statsRes.json();
+
+                if (statsData.stats) {
+                    document.getElementById('weak-count').textContent = statsData.stats.weak_count || 0;
+                    document.getElementById('strong-count').textContent = statsData.stats.strong_count || 0;
+                }
+
+                // Load activity stats
+                const actStatsRes = await authFetch('/activities/stats/summary');
+                const actStatsData = await actStatsRes.json();
+
+                if (actStatsData.stats) {
+                    document.getElementById('activities-count').textContent = actStatsData.stats.total || 0;
+                    document.getElementById('completed-count').textContent = actStatsData.stats.completed || 0;
+                }
+
+                // Load recent classifications
+                const classRes = await authFetch('/students');
+                const classData = await classRes.json();
+
+                const classBody = document.getElementById('classifications-body');
+                if (classData.classifications && classData.classifications.length > 0) {
+                    classBody.innerHTML = classData.classifications.slice(0, 5).map(c => `
+            <tr>
+              <td><strong>${c.student_name}</strong></td>
+              <td>${c.roll_number}</td>
+              <td><span class="badge badge-${c.category}">${c.category}</span></td>
+              <td>Sem ${c.semester}</td>
+              <td>${formatDate(c.classified_date)}</td>
+              <td>
+                <a href="activity-new.html?classificationId=${c.id}" class="btn btn-sm btn-outline">Add Activity</a>
+              </td>
+            </tr>
+          `).join('');
+                } else {
+                    classBody.innerHTML = `
+            <tr>
+              <td colspan="6" class="text-center">
+                <div class="empty-state" style="padding: var(--space-lg);">
+                  <p class="text-muted">No students classified yet. Start by adding students!</p>
+                </div>
+              </td>
+            </tr>
+          `;
+                }
+
+                // Load recent activities
+                const actRes = await authFetch('/activities');
+                const actData = await actRes.json();
+
+                const actBody = document.getElementById('activities-body');
+                if (actData.activities && actData.activities.length > 0) {
+                    actBody.innerHTML = actData.activities.slice(0, 5).map(a => `
+            <tr>
+              <td><strong>${a.title}</strong></td>
+              <td>${formatActivityType(a.activity_type)}</td>
+              <td>${a.student_name}</td>
+              <td><span class="badge badge-${a.completion_status}">${a.completion_status}</span></td>
+              <td>${formatDate(a.created_at)}</td>
+            </tr>
+          `).join('');
+                } else {
+                    actBody.innerHTML = `
+            <tr>
+              <td colspan="5" class="text-center">
+                <div class="empty-state" style="padding: var(--space-lg);">
+                  <p class="text-muted">No activities yet. Create activities for your students!</p>
+                </div>
+              </td>
+            </tr>
+          `;
+                }
+            } catch (error) {
+                console.error('Dashboard load error:', error);
+                showAlert('Failed to load dashboard data', 'error');
+            }
+        }
+
+        loadDashboard();
+    </script>
+</body>
+
+</html>

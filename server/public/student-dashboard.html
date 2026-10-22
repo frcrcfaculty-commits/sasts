@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Student Dashboard | SASTS</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/styles.css">
+    <style>
+        .student-header {
+            background: var(--gradient-success);
+            color: white;
+            padding: var(--space-xl);
+            border-radius: var(--radius-lg);
+            margin-bottom: var(--space-xl);
+        }
+
+        .notification-bell {
+            position: relative;
+            cursor: pointer;
+        }
+
+        .notification-badge {
+            position: absolute;
+            top: -5px;
+            right: -5px;
+            background: var(--danger);
+            color: white;
+            font-size: 0.7rem;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .activity-card {
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            padding: var(--space-lg);
+            margin-bottom: var(--space-md);
+            transition: all var(--transition-fast);
+        }
+
+        .activity-card:hover {
+            box-shadow: var(--shadow-md);
+            transform: translateY(-2px);
+        }
+
+        .activity-card.new {
+            border-left: 4px solid var(--success);
+            background: rgba(34, 197, 94, 0.05);
+        }
+
+        .progress-ring {
+            width: 60px;
+            height: 60px;
+        }
+    </style>
+</head>
+
+<body>
+    <div style="min-height: 100vh; background: var(--bg-primary); padding: var(--space-lg);">
+        <div class="container" style="max-width: 1000px;">
+            <!-- Header -->
+            <div class="student-header">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <div>
+                        <h1 style="margin-bottom: var(--space-xs);">Welcome, <span id="student-name">Student</span>! 👋
+                        </h1>
+                        <p style="opacity: 0.9;" id="student-info">Loading...</p>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: var(--space-lg);">
+                        <div class="notification-bell" onclick="toggleNotifications()">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2">
+                                <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+                                <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+                            </svg>
+                            <span class="notification-badge" id="notif-count" style="display: none;">0</span>
+                        </div>
+                        <button class="btn btn-secondary" onclick="logout()"
+                            style="background: rgba(255,255,255,0.2); border: none;">
+                            Logout
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Stats -->
+            <div class="stats-grid" style="grid-template-columns: repeat(4, 1fr);">
+                <div class="stat-card">
+                    <div class="stat-value" id="stat-activities">-</div>
+                    <div class="stat-label">Activities</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="stat-completed">-</div>
+                    <div class="stat-label">Completed</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="stat-time">-</div>
+                    <div class="stat-label">Time Spent</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="stat-score">-</div>
+                    <div class="stat-label">Avg Score</div>
+                </div>
+            </div>
+
+            <!-- Notifications Panel (hidden by default) -->
+            <div class="card mb-lg" id="notifications-panel" style="display: none;">
+                <div class="card-header">
+                    <h3>🔔 Notifications</h3>
+                    <button class="btn btn-sm btn-secondary" onclick="markAllRead()">Mark all read</button>
+                </div>
+                <div class="card-body" id="notifications-list">
+                    Loading...
+                </div>
+            </div>
+
+            <!-- Activities -->
+            <div class="card">
+                <div class="card-header">
+                    <h3>📚 Your Activities</h3>
+                </div>
+                <div class="card-body" id="activities-list">
+                    <p class="text-muted text-center">Loading activities...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Student auth helpers
+        function getStudentToken() {
+            return localStorage.getItem('sasts_student_token');
+        }
+
+        function getStudentUser() {
+            const userStr = localStorage.getItem('sasts_student_user');
+            return userStr ? JSON.parse(userStr) : null;
+        }
+
+        function logout() {
+            localStorage.removeItem('sasts_student_token');
+            localStorage.removeItem('sasts_student_user');
+            window.location.href = 'student-login.html';
+        }
+
+        async function studentFetch(endpoint, options = {}) {
+            const token = getStudentToken();
+            if (!token) {
+                window.location.href = 'student-login.html';
+                throw new Error('Not authenticated');
+            }
+
+            return fetch(`/api/student${endpoint}`, {
+                ...options,
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`,
+                    ...options.headers
+                }
+            });
+        }
+
+        // Check auth
+        if (!getStudentToken()) {
+            window.location.href = 'student-login.html';
+        }
+
+        const user = getStudentUser();
+        document.getElementById('student-name').textContent = user?.name || 'Student';
+        document.getElementById('student-info').textContent = `${user?.rollNumber} | Semester ${user?.semester} | ${user?.departmentName}`;
+
+        // Load profile and stats
+        async function loadProfile() {
+            try {
+                const response = await studentFetch('/me');
+                const data = await response.json();
+
+                if (data.stats) {
+                    document.getElementById('stat-activities').textContent = data.stats.unique_activities || 0;
+                    document.getElementById('stat-completed').textContent = data.stats.completed_sessions || 0;
+
+                    const mins = Math.round((data.stats.total_time_spent || 0) / 60);
+                    document.getElementById('stat-time').textContent = mins > 60 ? `${Math.round(mins / 60)}h` : `${mins}m`;
+
+                    const avgScore = data.stats.avg_score_percentage;
+                    document.getElementById('stat-score').textContent = avgScore ? `${Math.round(avgScore)}%` : '-';
+                }
+            } catch (error) {
+                console.error('Load profile error:', error);
+            }
+        }
+
+        // Load notifications
+        async function loadNotifications() {
+            try {
+                const response = await studentFetch('/notifications');
+                const data = await response.json();
+
+                const countEl = document.getElementById('notif-count');
+                if (data.unreadCount > 0) {
+                    countEl.style.display = 'flex';
+                    countEl.textContent = data.unreadCount > 9 ? '9+' : data.unreadCount;
+                } else {
+                    countEl.style.display = 'none';
+                }
+
+                const listEl = document.getElementById('notifications-list');
+                if (data.notifications && data.notifications.length > 0) {
+                    listEl.innerHTML = data.notifications.slice(0, 10).map(n => `
+            <div style="padding: var(--space-md); border-bottom: 1px solid var(--border); ${n.is_read ? '' : 'background: rgba(102, 126, 234, 0.05);'}">
+              <div style="display: flex; justify-content: space-between;">
+                <strong>${n.title}</strong>
+                <span class="text-sm text-muted">${formatTime(n.created_at)}</span>
+              </div>
+              <p class="text-sm text-muted">${n.message || ''}</p>
+            </div>
+          `).join('');
+                } else {
+                    listEl.innerHTML = '<p class="text-muted text-center">No notifications</p>';
+                }
+            } catch (error) {
+                console.error('Load notifications error:', error);
+            }
+        }
+
+        // Load activities
+        async function loadActivities() {
+            try {
+                const response = await studentFetch('/activities');
+                const data = await response.json();
+
+                const listEl = document.getElementById('activities-list');
+                if (data.activities && data.activities.length > 0) {
+                    listEl.innerHTML = data.activities.map(a => `
+            <div class="activity-card ${a.is_completed ? '' : 'new'}">
+              <div style="display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                  <h4>${a.title}</h4>
+                  <p class="text-sm text-muted">${a.course_name} | ${formatActivityType(a.activity_type)}</p>
+                </div>
+                <div style="text-align: right;">
+                  ${a.is_completed ?
+                            '<span class="badge badge-completed">✓ Completed</span>' :
+                            `<a href="student-activity.html?id=${a.id}" class="btn btn-primary">Start Activity</a>`
+                        }
+                </div>
+              </div>
+            </div>
+          `).join('');
+                } else {
+                    listEl.innerHTML = `
+            <div class="empty-state">
+              <div class="empty-state-icon">📚</div>
+              <h3>No Activities Yet</h3>
+              <p class="text-muted">Your professors will assign activities here</p>
+            </div>
+          `;
+                }
+            } catch (error) {
+                console.error('Load activities error:', error);
+            }
+        }
+
+        function toggleNotifications() {
+            const panel = document.getElementById('notifications-panel');
+            panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+        }
+
+        async function markAllRead() {
+            await studentFetch('/notifications/read-all', { method: 'PUT' });
+            loadNotifications();
+        }
+
+        function formatActivityType(type) {
+            const types = { mcq: 'MCQ Quiz', crossword: 'Crossword', fill_blanks: 'Fill Blanks', flashcards: 'Flashcards' };
+            return types[type] || type;
+        }
+
+        function formatTime(dateStr) {
+            const date = new Date(dateStr);
+            const now = new Date();
+            const diff = now - date;
+            if (diff < 3600000) return 'Just now';
+            if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`;
+            return date.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+        }
+
+        // Heartbeat to track time
+        let sessionStart = Date.now();
+        setInterval(async () => {
+            const seconds = Math.floor((Date.now() - sessionStart) / 1000);
+            if (seconds > 30) {
+                await studentFetch('/heartbeat', { method: 'POST', body: JSON.stringify({ seconds }) });
+                sessionStart = Date.now();
+            }
+        }, 60000);
+
+        loadProfile();
+        loadNotifications();
+        loadActivities();
+    </script>
+</body>
+
+</html>

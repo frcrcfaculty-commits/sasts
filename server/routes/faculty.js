@@ -17,7 +17,7 @@ const aiService = require('../services/ai');
 // Multer setup for file uploads
 const storage = multer.diskStorage({
     destination: (req, file, cb) => {
-        const uploadDir = path.join(__dirname, '../uploads');
+        const uploadDir = process.env.VERCEL ? '/tmp/sasts/uploads' : path.join(__dirname, '../uploads');
         if (!fs.existsSync(uploadDir)) {
             fs.mkdirSync(uploadDir, { recursive: true });
         }

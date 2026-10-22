@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Activity Generator | SASTS</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/styles.css">
+    <style>
+        .generator-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: var(--space-lg);
+            margin-bottom: var(--space-xl);
+        }
+
+        @media (max-width: 768px) {
+            .generator-container {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .selector-card {
+            background: var(--bg-card);
+            border: 2px solid var(--border);
+            border-radius: var(--radius-lg);
+            padding: var(--space-lg);
+        }
+
+        .selector-card.active {
+            border-color: var(--primary);
+        }
+
+        .option-list {
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .option-item {
+            padding: var(--space-md);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            margin-bottom: var(--space-sm);
+            cursor: pointer;
+            transition: all var(--transition-fast);
+        }
+
+        .option-item:hover {
+            background: var(--bg-secondary);
+        }
+
+        .option-item.selected {
+            background: rgba(102, 126, 234, 0.1);
+            border-color: var(--primary);
+        }
+
+        .preview-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            padding: var(--space-lg);
+            min-height: 300px;
+        }
+
+        .question-preview {
+            border-left: 3px solid var(--primary);
+            padding-left: var(--space-md);
+            margin-bottom: var(--space-md);
+        }
+    </style>
+</head>
+
+<body>
+    <div class="page-wrapper">
+        <div id="sidebar-container"></div>
+
+        <main class="main-content">
+            <div class="page-header">
+                <div>
+                    <h1 class="page-title">🎮 AI Activity Generator</h1>
+                    <p class="page-subtitle" id="course-subtitle">Select a module and activity type to generate</p>
+                </div>
+                <a href="faculty-syllabus.html" class="btn btn-secondary">← Back to Syllabi</a>
+            </div>
+
+            <div id="alert-container"></div>
+
+            <!-- Generator Interface -->
+            <div class="generator-container">
+                <!-- Module Selector -->
+                <div class="selector-card">
+                    <h3 style="margin-bottom: var(--space-md);">📚 Select Module</h3>
+                    <div class="option-list" id="module-list">
+                        <p class="text-muted">Loading modules...</p>
+                    </div>
+                </div>
+
+                <!-- Activity Type Selector -->
+                <div class="selector-card">
+                    <h3 style="margin-bottom: var(--space-md);">🎯 Select Activity Type</h3>
+                    <div class="option-list" id="activity-type-list">
+                        <div class="option-item" data-type="mcq" onclick="selectActivityType('mcq', this)">
+                            <strong>📝 MCQ Quiz</strong>
+                            <p class="text-sm text-muted">Multiple choice questions with explanations</p>
+                        </div>
+                        <div class="option-item" data-type="crossword" onclick="selectActivityType('crossword', this)">
+                            <strong>🔠 Crossword Puzzle</strong>
+                            <p class="text-sm text-muted">Interactive word puzzle with clues</p>
+                        </div>
+                        <div class="option-item" data-type="fill_blanks"
+                            onclick="selectActivityType('fill_blanks', this)">
+                            <strong>✏️ Fill in the Blanks</strong>
+                            <p class="text-sm text-muted">Complete sentences with key terms</p>
+                        </div>
+                        <div class="option-item" data-type="flashcards"
+                            onclick="selectActivityType('flashcards', this)">
+                            <strong>🎴 Flashcards</strong>
+                            <p class="text-sm text-muted">Study cards with questions and answers</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Options -->
+            <div class="card mb-lg">
+                <div class="card-body">
+                    <div
+                        style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: var(--space-lg);">
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label class="form-label">Activity Title</label>
+                            <input type="text" id="activity-title" class="form-input"
+                                placeholder="Auto-generated if empty">
+                        </div>
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label class="form-label">Number of Questions</label>
+                            <select id="question-count" class="form-select">
+                                <option value="5">5 Questions</option>
+                                <option value="10" selected>10 Questions</option>
+                                <option value="15">15 Questions</option>
+                                <option value="20">20 Questions</option>
+                            </select>
+                        </div>
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label class="form-label">Difficulty</label>
+                            <select id="difficulty" class="form-select">
+                                <option value="easy">Easy</option>
+                                <option value="medium" selected>Medium</option>
+                                <option value="hard">Hard</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-footer">
+                    <button class="btn btn-primary btn-lg" id="generate-btn" onclick="generateActivity()" disabled>
+                        🤖 Generate with AI
+                    </button>
+                </div>
+            </div>
+
+            <!-- Preview -->
+            <div class="preview-card" id="preview-section" style="display: none;">
+                <div
+                    style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-lg);">
+                    <h3>Preview</h3>
+                    <div class="flex gap-md">
+                        <button class="btn btn-secondary" onclick="regenerate()">🔄 Regenerate</button>
+                        <button class="btn btn-success" onclick="saveActivity()">💾 Save Draft</button>
+                        <button class="btn btn-primary" onclick="publishActivity()">📤 Publish to Students</button>
+                    </div>
+                </div>
+                <div id="preview-content"></div>
+            </div>
+        </main>
+    </div>
+
+    <script src="js/auth.js"></script>
+    <script>
+        if (!requireAuth()) window.location.href = 'index.html';
+        document.getElementById('sidebar-container').innerHTML = buildSidebar();
+
+        const params = new URLSearchParams(window.location.search);
+        const syllabusId = params.get('syllabusId');
+
+        let selectedModule = null;
+        let selectedActivityType = null;
+        let generatedContent = null;
+        let currentActivityId = null;
+
+        // Load syllabus and modules
+        async function loadSyllabusData() {
+            if (!syllabusId) {
+                showAlert('No syllabus selected', 'error');
+                return;
+            }
+
+            try {
+                const response = await authFetch(`/faculty/syllabus/${syllabusId}`);
+                const data = await response.json();
+
+                document.getElementById('course-subtitle').textContent = data.syllabus.course_name;
+
+                const moduleList = document.getElementById('module-list');
+                if (data.modules && data.modules.length > 0) {
+                    moduleList.innerHTML = data.modules.map(m => `
+            <div class="option-item" data-id="${m.id}" onclick="selectModule(${m.id}, '${m.module_name}', this)">
+              <strong>Module ${m.module_number}: ${m.module_name}</strong>
+              <p class="text-sm text-muted">${m.hours || 0} hours</p>
+            </div>
+          `).join('');
+                } else {
+                    moduleList.innerHTML = '<p class="text-muted">No modules found in this syllabus</p>';
+                }
+            } catch (error) {
+                showAlert('Failed to load syllabus', 'error');
+            }
+        }
+
+        function selectModule(id, name, element) {
+            document.querySelectorAll('#module-list .option-item').forEach(el => el.classList.remove('selected'));
+            element.classList.add('selected');
+            selectedModule = { id, name };
+            updateGenerateButton();
+        }
+
+        function selectActivityType(type, element) {
+            document.querySelectorAll('#activity-type-list .option-item').forEach(el => el.classList.remove('selected'));
+            element.classList.add('selected');
+            selectedActivityType = type;
+            updateGenerateButton();
+        }
+
+        function updateGenerateButton() {
+            const btn = document.getElementById('generate-btn');
+            btn.disabled = !selectedModule || !selectedActivityType;
+        }
+
+        async function generateActivity() {
+            const btn = document.getElementById('generate-btn');
+            btn.disabled = true;
+            btn.innerHTML = '⏳ Generating...';
+
+            try {
+                const response = await authFetch('/faculty/activities/generate', {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        syllabusId: parseInt(syllabusId),
+                        moduleId: selectedModule.id,
+                        activityType: selectedActivityType,
+                        title: document.getElementById('activity-title').value || null,
+                        questionCount: parseInt(document.getElementById('question-count').value),
+                        difficulty: document.getElementById('difficulty').value
+                    })
+                });
+
+                const data = await response.json();
+                if (!response.ok) throw new Error(data.message);
+
+                generatedContent = data.activity.content;
+                currentActivityId = data.activity.id;
+
+                showPreview(data.activity);
+                showAlert(data.aiGenerated ? 'Activity generated with AI!' : 'Activity created. Add content manually.', 'success');
+            } catch (error) {
+                showAlert(error.message || 'Generation failed', 'error');
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = '🤖 Generate with AI';
+            }
+        }
+
+        function showPreview(activity) {
+            document.getElementById('preview-section').style.display = 'block';
+
+            let content;
+            try {
+                content = typeof activity.content === 'string' ? JSON.parse(activity.content) : activity.content;
+            } catch {
+                content = activity.content;
+            }
+
+            let previewHtml = `<h4>${activity.title}</h4><p class="text-muted">Type: ${activity.activity_type} | Difficulty: ${activity.difficulty}</p><hr style="margin: var(--space-md) 0;">`;
+
+            if (content.questions) {
+                previewHtml += content.questions.slice(0, 5).map((q, i) => `
+          <div class="question-preview">
+            <strong>Q${i + 1}: ${q.question}</strong>
+            <ul style="margin-top: var(--space-sm);">
+              ${q.options.map((opt, j) => `<li style="color: ${j === q.correct_answer ? 'var(--success)' : 'inherit'}">${opt} ${j === q.correct_answer ? '✓' : ''}</li>`).join('')}
+            </ul>
+          </div>
+        `).join('');
+                if (content.questions.length > 5) {
+                    previewHtml += `<p class="text-muted">... and ${content.questions.length - 5} more questions</p>`;
+                }
+            } else if (content.cards) {
+                previewHtml += content.cards.slice(0, 5).map((c, i) => `
+          <div class="question-preview">
+            <strong>Card ${i + 1}:</strong> ${c.front}<br>
+            <span class="text-muted">Answer: ${c.back}</span>
+          </div>
+        `).join('');
+            } else if (content.words) {
+                previewHtml += `<p><strong>Crossword words:</strong> ${content.words.map(w => w.word).join(', ')}</p>`;
+            } else if (content.message) {
+                previewHtml += `<p class="text-muted">${content.message}</p>`;
+            } else {
+                previewHtml += `<pre style="background: var(--bg-secondary); padding: var(--space-md); border-radius: var(--radius-md); overflow: auto;">${JSON.stringify(content, null, 2)}</pre>`;
+            }
+
+            document.getElementById('preview-content').innerHTML = previewHtml;
+        }
+
+        async function regenerate() {
+            if (currentActivityId) {
+                await authFetch(`/faculty/activities/generated/${currentActivityId}`, { method: 'DELETE' });
+            }
+            generateActivity();
+        }
+
+        function saveActivity() {
+            showAlert('Activity saved as draft!', 'success');
+        }
+
+        async function publishActivity() {
+            if (!currentActivityId) return;
+
+            try {
+                // For now, publish without assigning to specific students
+                const response = await authFetch(`/faculty/activities/generated/${currentActivityId}/publish`, {
+                    method: 'POST',
+                    body: JSON.stringify({ studentIds: [] })
+                });
+
+                const data = await response.json();
+                if (!response.ok) throw new Error(data.message);
+
+                showAlert('Activity published successfully!', 'success');
+            } catch (error) {
+                showAlert(error.message || 'Publish failed', 'error');
+            }
+        }
+
+        loadSyllabusData();
+    </script>
+</body>
+
+</html>
