@@ -17,7 +17,9 @@ let db = null;
 
 // Initialize database
 const initDatabase = async () => {
-  const SQL = await initSqlJs();
+  // Load the wasm binary explicitly so serverless bundlers ship it.
+  const wasmBinary = fs.readFileSync(path.join(path.dirname(require.resolve('sql.js')), 'sql-wasm.wasm'));
+  const SQL = await initSqlJs({ wasmBinary });
 
   // Try to load existing database
   try {
